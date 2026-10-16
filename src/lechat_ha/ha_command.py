@@ -7,7 +7,6 @@ C'est l'assistant du chat qui traduit le langage naturel en appel API.
 import os
 from typing import Any, Literal
 
-import httpx
 from pydantic import BaseModel, Field
 
 import mistralai.workflows as workflows
@@ -25,7 +24,13 @@ class HaCommandInput(BaseModel):
 
 @workflows.activity()
 async def call_ha(path: str, method: str, body: dict[str, Any] | None) -> dict[str, Any]:
-    """Appelle l'API de Home Assistant avec les 3 badges (jeton HA + Cloudflare Access)."""
+    """Appelle l'API de Home Assistant avec les 3 badges (jeton HA + Cloudflare Access).
+
+    Note: httpx est importé ici (et pas en haut du fichier) car le bac à sable
+    du workflow interdit les imports réseau au niveau module.
+    """
+    import httpx
+
     headers = {
         "Authorization": f"Bearer {os.environ['HA_BEARER_TOKEN']}",
         "CF-Access-Client-Id": os.environ["CF_ACCESS_CLIENT_ID"],
