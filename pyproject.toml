@@ -1,6 +1,6 @@
 [project]
 name = "maison-blaise-ha"
-version = "0.1.0"
+version = "0.2.0"
 description = "Workflow Mistral géré — le chat pilote Home Assistant (Maison Blaise) via tunnel Cloudflare"
 requires-python = ">=3.12"
 dependencies = [
