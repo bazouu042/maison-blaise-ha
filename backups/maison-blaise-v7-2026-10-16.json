@@ -1,0 +1,2651 @@
+{
+  "title": "Maison Blaise OS",
+  "wallpanel": {
+    "enabled": true,
+    "hide_sidebar": true,
+    "hide_header": true,
+    "idle_time": 0,
+    "image_url": ""
+  },
+  "views": [
+    {
+      "type": "sections",
+      "path": "maison-blaise-v7",
+      "max_columns": 3,
+      "title": "Maison Blaise V7",
+      "sections": [
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": "full",
+                "rows": 5
+              },
+              "triggers_update": [
+                "sensor.salon_capteur_temperature_temperature",
+                "sensor.salon_capteur_temperature_humidite",
+                "weather.forecast_maison"
+              ],
+              "update_timer": "1s",
+              "custom_fields": {
+                "photo": "[[[\n  return `\n    <div class=\"cassandra-photo\">\n      <video\n        src=\"/local/cassandra.mp4\"\n        autoplay\n        loop\n        muted\n        playsinline\n      ></video>\n    </div>\n  `;\n]]]\n",
+                "infos": "[[[\n  const maintenant = new Date();\n\n  const heure = maintenant.toLocaleTimeString('fr-FR', {\n    hour: '2-digit',\n    minute: '2-digit',\n    hour12: false\n  });\n\n  /* ==============================\n     VOLETS\n     ============================== */\n  const volets = Object.values(states).filter((e) => {\n    if (!e.entity_id.startsWith('cover.')) return false;\n    const id = e.entity_id.toLowerCase();\n    const nom = String(e.attributes?.friendly_name || '').toLowerCase();\n    return (\n      id.includes('volet') ||\n      id.startsWith('cover.rfy_') ||\n      nom.includes('volet') ||\n      nom.startsWith('rfy ')\n    );\n  });\n\n  const voletsConnus = volets.filter((e) => !['unknown', 'unavailable'].includes(e.state));\n  const voletsOuverts = voletsConnus.filter((e) => e.state !== 'closed');\n\n  let texteVolets;\n  let couleurVolets = 'vert';\n\n  if (voletsConnus.length === 0) {\n    texteVolets = 'Volets : état indisponible';\n    couleurVolets = 'orange';\n  } else if (voletsOuverts.length === 0) {\n    texteVolets = 'Tous les volets sont fermés';\n    couleurVolets = 'vert';\n  } else if (voletsOuverts.length === 1) {\n    texteVolets = '1 volet est ouvert';\n    couleurVolets = 'orange';\n  } else {\n    texteVolets = `${voletsOuverts.length} volets sont ouverts`;\n    couleurVolets = 'orange';\n  }\n\n  /* ==============================\n     LUMIÈRES\n     ============================== */\n  const lumieres = Object.values(states).filter((e) => e.entity_id.startsWith('light.'));\n  const lumieresAllumees = lumieres.filter((e) => e.state === 'on');\n\n  let texteLumieres;\n  let couleurLumieres;\n\n  if (lumieresAllumees.length === 0) {\n    texteLumieres = 'Aucune lumière oubliée';\n    couleurLumieres = 'vert';\n  } else if (lumieresAllumees.length === 1) {\n    texteLumieres = '1 lumière est allumée';\n    couleurLumieres = 'jaune';\n  } else {\n    texteLumieres = `${lumieresAllumees.length} lumières sont allumées`;\n    couleurLumieres = 'jaune';\n  }\n\n  /* ==============================\n     TEMPÉRATURE (CAPTEUR SALON DIRECT)\n     ============================== */\n  const salonTemp = Object.values(states).find(e => e.entity_id === 'sensor.salon_capteur_temperature_temperature');\n  const weatherEntity = Object.values(states).find((e) => e.entity_id.startsWith('weather.'));\n\n  let texteTemperature = 'Température : N/A';\n  \n  if (salonTemp && salonTemp.state && !['unknown', 'unavailable', 'none'].includes(salonTemp.state.toLowerCase())) {\n    const valTemp = parseFloat(salonTemp.state).toFixed(1).replace('.', ',');\n    texteTemperature = `Température intérieure : ${valTemp} °C`;\n  } else if (weatherEntity && weatherEntity.attributes?.temperature !== undefined) {\n    texteTemperature = `Température extérieure : ${weatherEntity.attributes.temperature} °C`;\n  }\n\n  /* ==============================\n     AGENDA\n     ============================== */\n  const calendrier = states['calendar.famille_blaise'];\n  let texteAgenda = 'Prochain rendez-vous : aucun';\n  let couleurAgenda = 'violet';\n\n  if (calendrier) {\n    const message = calendrier.attributes?.message;\n    const debut = calendrier.attributes?.start_time;\n\n    if (message) {\n      let dateAgenda = '';\n      if (debut) {\n        const d = new Date(debut);\n        if (!isNaN(d.getTime())) {\n          dateAgenda = d.toLocaleDateString('fr-FR', {\n            day: '2-digit',\n            month: 'short'\n          });\n        }\n      }\n      texteAgenda = dateAgenda ? `${message} · ${dateAgenda}` : message;\n    }\n  }\n\n  /* ==============================\n     TEMPO\n     ============================== */\n  const tempoEntity = states['sensor.rte_tempo_couleur_actuelle'];\n  const tempoBrut = tempoEntity?.state || 'Inconnu';\n\n  const normaliseTempo = (value) => {\n    const v = String(value).toLowerCase().trim();\n    if (v.includes('bleu') || v === 'blue') return 'Bleu';\n    if (v.includes('blanc') || v === 'white') return 'Blanc';\n    if (v.includes('rouge') || v === 'red') return 'Rouge';\n    return value;\n  };\n\n  const tempo = normaliseTempo(tempoBrut);\n  let couleurTempo = 'cyan';\n  if (tempo === 'Rouge') couleurTempo = 'rouge';\n  if (tempo === 'Blanc') couleurTempo = 'blanc';\n\n  /* ==============================\n     SPA\n     ============================== */\n  const spa = states['switch.disjoncteur_spa_interrupteur'];\n  let texteSpa = 'Spa : indisponible';\n  let couleurSpa = 'orange';\n\n  if (spa) {\n    if (spa.state === 'on') {\n      texteSpa = 'Spa : alimenté';\n      couleurSpa = 'vert';\n    } else if (spa.state === 'off') {\n      texteSpa = 'Spa : coupé';\n      couleurSpa = 'orange';\n    }\n  }\n\n  /* ==============================\n     CONSOMMATION EDF\n     ============================== */\n  const linky = states['sensor.linky_19446454395641_consumption'];\n  let texteEDF = 'Consommation EDF : indisponible';\n  let couleurEDF = 'orange';\n\n  if (linky && !['unknown', 'unavailable'].includes(linky.state)) {\n    const valeur = Number(linky.state);\n    if (!isNaN(valeur)) {\n      const conso = valeur.toFixed(1).replace('.', ',');\n      texteEDF = `Consommation hier : ${conso} kWh`;\n      couleurEDF = 'vert';\n    }\n  }\n\n  /* ==============================\n     AFFICHAGE\n     ============================== */\n  return `\n    <div class=\"cassandra-infos\">\n      <div class=\"cassandra-titre\">✦ CASSANDRA</div>\n      <div class=\"cassandra-bonjour\">Bonjour Johnatan ! 👋</div>\n      <div class=\"cassandra-lignes\">\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurVolets}\"></span>\n          <span>${texteVolets}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurLumieres}\"></span>\n          <span>${texteLumieres}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point bleu\"></span>\n          <span>${texteTemperature}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurAgenda}\"></span>\n          <span>${texteAgenda}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurTempo}\"></span>\n          <span>Tempo : ${tempo}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurSpa}\"></span>\n          <span>${texteSpa}</span>\n        </div>\n        <div class=\"cassandra-ligne\">\n          <span class=\"point ${couleurEDF}\"></span>\n          <span>${texteEDF}</span>\n        </div>\n      </div>\n      <div class=\"cassandra-maj\">\n        Dernière mise à jour : ${heure}\n      </div>\n    </div>\n  `;\n]]]",
+                "heure": "[[[\n  const maintenant = new Date();\n\n  const heure = maintenant.toLocaleTimeString('fr-FR', {\n    hour: '2-digit',\n    minute: '2-digit',\n    hour12: false\n  });\n\n  let jour = maintenant.toLocaleDateString('fr-FR', {\n    weekday: 'long'\n  });\n  jour = jour.charAt(0).toUpperCase() + jour.slice(1);\n\n  const date = maintenant.toLocaleDateString('fr-FR', {\n    day: 'numeric',\n    month: 'long',\n    year: 'numeric'\n  });\n\n  return `\n    <div class=\"cassandra-horloge\">\n      <div class=\"cassandra-heure\">${heure}</div>\n      <div class=\"cassandra-jour\">${jour}</div>\n      <div class=\"cassandra-date\">${date}</div>\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "100%"
+                  },
+                  {
+                    "height": "290px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "2px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0,180,255,0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"photo infos heure\""
+                  },
+                  {
+                    "grid-template-columns": "24% 52% 24%"
+                  },
+                  {
+                    "grid-template-rows": "300px"
+                  },
+                  {
+                    "column-gap": 0
+                  }
+                ],
+                "custom_fields": {
+                  "photo": [
+                    {
+                      "grid-area": "photo"
+                    },
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    },
+                    {
+                      "overflow": "hidden"
+                    }
+                  ],
+                  "infos": [
+                    {
+                      "grid-area": "infos"
+                    },
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    },
+                    {
+                      "min-width": 0
+                    },
+                    {
+                      "overflow": "hidden"
+                    }
+                  ],
+                  "heure": [
+                    {
+                      "grid-area": "heure"
+                    },
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    },
+                    {
+                      "min-width": 0
+                    },
+                    {
+                      "overflow": "hidden"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "/* ==============================\n   PORTRAIT ANIME (VIDÉO)\n   ============================== */\n.cassandra-photo {\n  width: 100%;\n  height: 100%;\n  overflow: hidden;\n  background: radial-gradient(circle at 50% 42%, rgba(0,174,255,0.18), transparent 70%);\n}\n.cassandra-photo video {\n  display: block;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  object-position: center top;\n}\n\n/* ==============================\n   INFOS\n   ============================== */\n.cassandra-infos {\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n  padding: 24px 18px 16px 24px;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  text-align: left;\n}\n.cassandra-titre {\n  margin-bottom: 9px;\n  color: #39c6ff;\n  font-size: clamp(20px,1.4vw,28px);\n  font-weight: 800;\n  letter-spacing: 0.5px;\n  white-space: nowrap;\n}\n.cassandra-bonjour {\n  margin-bottom: 15px;\n  color: white;\n  font-size: clamp(13px,0.9vw,16px);\n  font-weight: 700;\n  white-space: nowrap;\n}\n.cassandra-lignes {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  padding-left: 14px;\n  box-sizing: border-box;\n}\n.cassandra-ligne {\n  min-width: 0;\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  color: rgba(245,248,252,0.95);\n  font-size: clamp(10px,0.72vw,13px);\n  line-height: 1.25;\n  white-space: nowrap;\n  overflow: hidden;\n}\n.cassandra-ligne > span:last-child {\n  min-width: 0;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n.point {\n  display: block !important;\n  width: 7px !important;\n  height: 7px !important;\n  min-width: 7px !important;\n  min-height: 7px !important;\n  max-width: 7px !important;\n  max-height: 7px !important;\n  flex: 0 0 7px !important;\n  padding: 0 !important;\n  margin: 0 !important;\n  border: none !important;\n  border-radius: 50% !important;\n  background: currentColor !important;\n  box-shadow: none !important;\n  filter: none !important;\n  line-height: 0 !important;\n  font-size: 0 !important;\n}\n.vert { color: #26d96f; }\n.jaune { color: #ffd43b; }\n.bleu { color: #25baff; }\n.violet { color: #9b6cff; }\n.cyan { color: #25d9ff; }\n.orange { color: #ff8c24; }\n.rouge { color: #ff4d67; }\n.blanc { color: #ffffff; }\n\n.cassandra-maj {\n  margin-top: 14px;\n  margin-left: 14px;\n  color: rgba(170,200,224,0.68);\n  font-size: 10px;\n  white-space: nowrap;\n}\n.cassandra-horloge {\n  width: 100%;\n  height: calc(100% - 40px);\n  margin: 20px 0;\n  padding: 0 10px;\n  box-sizing: border-box;\n  border-left: 1px solid rgba(255,255,255,0.10);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  text-align: center;\n  overflow: hidden;\n}\n.cassandra-heure {\n  width: 100%;\n  color: white;\n  font-size: clamp(38px,3vw,56px);\n  font-weight: 300;\n  line-height: 1;\n  letter-spacing: -2px;\n  white-space: nowrap;\n}\n.cassandra-jour {\n  margin-top: 22px;\n  color: #1fc6ff;\n  font-size: clamp(13px,0.9vw,17px);\n  font-weight: 700;\n  white-space: nowrap;\n}\n.cassandra-date {\n  margin-top: 4px;\n  color: #1fc6ff;\n  font-size: clamp(11px,0.78vw,15px);\n  font-weight: 700;\n  white-space: nowrap;\n}\n@media (max-width: 1100px) {\n  .cassandra-infos {\n    padding-left: 16px;\n    padding-right: 10px;\n  }\n  .cassandra-lignes {\n    padding-left: 12px;\n  }\n  .cassandra-maj {\n    margin-left: 12px;\n  }\n  .cassandra-ligne {\n    white-space: normal;\n  }\n  .cassandra-heure {\n    font-size: clamp(34px,4vw,48px);\n  }\n}\n"
+            }
+          ],
+          "column_span": 2
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 5
+              },
+              "triggers_update": [
+                "weather.forecast_maison",
+                "sensor.previsions_meteo_maison"
+              ],
+              "custom_fields": {
+                "contenu": "[[[\n  const weather = states['weather.forecast_maison'];\n  const forecastSensor = states['sensor.previsions_meteo_maison'];\n\n  const temperature =\n    weather?.attributes?.temperature ?? '--';\n\n  const condition =\n    weather?.state ?? 'partlycloudy';\n\n  const forecasts =\n    forecastSensor?.attributes?.forecast ?? [];\n\n  const icons = {\n    'clear-night': '🌙',\n    sunny: '☀️',\n    partlycloudy: '🌤️',\n    cloudy: '☁️',\n    rainy: '🌧️',\n    pouring: '🌧️',\n    lightning: '⛈️',\n    'lightning-rainy': '⛈️',\n    snowy: '🌨️',\n    'snowy-rainy': '🌨️',\n    fog: '🌫️',\n    windy: '💨',\n    'windy-variant': '💨',\n    hail: '🌨️',\n    exceptional: '⚠️'\n  };\n\n  const descriptions = {\n    'clear-night': 'Nuit dégagée',\n    sunny: 'Ensoleillé',\n    partlycloudy: 'Partiellement nuageux',\n    cloudy: 'Nuageux',\n    rainy: 'Pluvieux',\n    pouring: 'Fortes pluies',\n    lightning: 'Orageux',\n    'lightning-rainy': 'Orage et pluie',\n    snowy: 'Neige',\n    'snowy-rainy': 'Neige et pluie',\n    fog: 'Brouillard',\n    windy: 'Venteux',\n    'windy-variant': 'Venteux',\n    hail: 'Grêle',\n    exceptional: 'Conditions exceptionnelles'\n  };\n\n  const labels = [\n    'AUJ.',\n    'DEM.',\n    'J+2',\n    'J+3',\n    'J+4'\n  ];\n\n  const formatTemp = (value) => {\n    if (value === undefined || value === null) return '--';\n\n    const n = Number(value);\n\n    if (Number.isNaN(n)) return '--';\n\n    return Number.isInteger(n)\n      ? n.toString()\n      : n.toFixed(1).replace('.', ',');\n  };\n\n  const forecastHtml =\n    Array.from({ length: 5 }, (_, index) => {\n\n      const item = forecasts[index];\n\n      if (!item) {\n        return `\n          <div class=\"jour\">\n            <div class=\"label\">${labels[index]}</div>\n            <div class=\"forecast-icon\">🌤️</div>\n            <div class=\"max\">--°</div>\n            <div class=\"min\">--°</div>\n          </div>\n        `;\n      }\n\n      const itemCondition =\n        item.condition ?? 'partlycloudy';\n\n      return `\n        <div class=\"jour\">\n\n          <div class=\"label\">\n            ${labels[index]}\n          </div>\n\n          <div class=\"forecast-icon\">\n            ${icons[itemCondition] ?? '🌤️'}\n          </div>\n\n          <div class=\"max\">\n            ${formatTemp(item.temperature)}°\n          </div>\n\n          <div class=\"min\">\n            ${formatTemp(item.templow)}°\n          </div>\n\n        </div>\n      `;\n    }).join('');\n\n  return `\n    <div class=\"meteo-v7\">\n\n      <div class=\"haut\">\n\n        <div class=\"icone-principale\">\n          ${icons[condition] ?? '🌤️'}\n        </div>\n\n        <div class=\"infos\">\n\n          <div class=\"titre\">\n            Météo Maison Blaise\n          </div>\n\n          <div class=\"temperature\">\n            ${formatTemp(temperature)}°C\n          </div>\n\n          <div class=\"condition\">\n            ${descriptions[condition] ?? condition}\n          </div>\n\n        </div>\n\n      </div>\n\n      <div class=\"separateur\"></div>\n\n      <div class=\"previsions\">\n        ${forecastHtml}\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "200%"
+                  },
+                  {
+                    "height": "290px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3, 17, 31, 0.98), rgba(3, 11, 22, 0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0, 180, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "100%"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.meteo-v7 {\n  width: 100%;\n  height: 100%;\n\n  box-sizing: border-box;\n\n  padding: 24px 28px 20px;\n\n  display: flex;\n  flex-direction: column;\n\n  color: white;\n\n  text-align: left;\n}\n\n.haut {\n  display: flex;\n  align-items: center;\n\n  min-height: 118px;\n}\n\n.icone-principale {\n  width: 120px;\n\n  flex: 0 0 120px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  font-size: 72px;\n\n  line-height: 1;\n\n  filter:\n    drop-shadow(\n      0 0 10px rgba(255, 190, 40, 0.30)\n    );\n}\n\n.infos {\n  min-width: 0;\n\n  padding-left: 10px;\n}\n\n.titre {\n  margin-bottom: 4px;\n\n  color:\n    rgba(235, 242, 248, 0.82);\n\n  font-size:\n    clamp(12px, 0.9vw, 15px);\n\n  white-space: nowrap;\n}\n\n.temperature {\n  color: #ffffff;\n\n  font-size:\n    clamp(34px, 3vw, 48px);\n\n  font-weight: 600;\n\n  line-height: 1;\n\n  white-space: nowrap;\n}\n\n.condition {\n  margin-top: 7px;\n\n  color:\n    rgba(180, 200, 218, 0.72);\n\n  font-size:\n    clamp(11px, 0.8vw, 14px);\n}\n\n.separateur {\n  width: 100%;\n  height: 1px;\n\n  background:\n    rgba(255, 255, 255, 0.07);\n\n  margin:\n    4px 0 14px;\n}\n\n.previsions {\n  flex: 1;\n\n  display: grid;\n\n  grid-template-columns:\n    repeat(5, 1fr);\n\n  align-items: center;\n}\n\n.jour {\n  min-width: 0;\n\n  display: flex;\n  flex-direction: column;\n\n  align-items: center;\n\n  gap: 4px;\n\n  text-align: center;\n}\n\n.label {\n  color:\n    rgba(190, 205, 218, 0.75);\n\n  font-size:\n    clamp(8px, 0.62vw, 11px);\n\n  font-weight: 500;\n}\n\n.forecast-icon {\n  margin-top: 3px;\n\n  font-size:\n    clamp(23px, 1.8vw, 31px);\n\n  line-height: 1.15;\n}\n\n.max {\n  color:\n    rgba(245, 248, 252, 0.96);\n\n  font-size:\n    clamp(11px, 0.8vw, 14px);\n\n  font-weight: 700;\n}\n\n.min {\n  color:\n    rgba(160, 180, 198, 0.72);\n\n  font-size:\n    clamp(9px, 0.65vw, 11px);\n}\n\n@media (max-width: 1100px) {\n\n  .meteo-v7 {\n    padding-left: 18px;\n    padding-right: 18px;\n  }\n\n  .icone-principale {\n    width: 90px;\n    flex-basis: 90px;\n\n    font-size: 58px;\n  }\n\n}\n"
+            }
+          ],
+          "column_span": 1
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "grid_options": {
+                "columns": 6,
+                "rows": 4
+              },
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "custom_fields": {
+                "info": "[[[\n  // =========================\n  // VOLETS\n  // =========================\n  const volets = [\n    'cover.rfy_010003_1',\n    'cover.rfy_010004_1',\n    'cover.rfy_010005_1',\n    'cover.rfy_010006_1',\n    'cover.rfy_010007_1',\n    'cover.volet_chambre_parents'\n  ];\n\n  const voletsOuverts = volets.filter(e =>\n    states[e] &&\n    states[e].state !== 'closed'\n  ).length;\n\n  const voletsOK = voletsOuverts === 0;\n\n  // =========================\n  // LUMIERES\n  // =========================\n  const lumieres = [\n    'light.pool_house',\n    'light.pool_house_2',\n    'light.pool_house_3',\n    'light.spa',\n    'light.spot_palmier',\n    'light.spot_spa_01',\n    'light.spot_spa_02',\n    'light.spot_spa_03',\n    'light.spot_terrasse_01',\n    'light.spot_terrasse_02',\n    'light.spot_terrasse_03',\n    'light.spot_terrasse_04',\n    'light.terrasse'\n  ];\n\n  const lumieresAllumees = lumieres.filter(e =>\n    states[e] &&\n    states[e].state === 'on'\n  ).length;\n\n  const lumieresOK = lumieresAllumees === 0;\n\n  // =========================\n  // CLIMATISATION\n  // =========================\n  const clim = states['climate.climatisation_salon_mqtt_hvac'];\n  let climTexte = 'Éteinte';\n  let climClass = 'ok';\n  let climCouleur = 'green';\n\n  if (clim) {\n    if (['unavailable', 'unknown'].includes(clim.state)) {\n      climTexte = 'Indisponible';\n      climClass = 'warning';\n      climCouleur = 'orange';\n    } else if (clim.state === 'off') {\n      climTexte = 'Éteinte';\n      climClass = 'off';\n      climCouleur = 'green';\n    } else {\n      const modes_fr = { cool: 'Froid', heat: 'Chaud', heat_cool: 'Auto', fan_only: 'Ventil.', dry: 'Déshum.' };\n      const modeLabel = modes_fr[clim.state] || clim.state;\n      const targetTemp = clim.attributes?.temperature ? ` ${clim.attributes.temperature}°` : '';\n      climTexte = `${modeLabel}${targetTemp}`;\n      climClass = 'ok';\n      climCouleur = 'blue';\n    }\n  }\n\n  // =========================\n  // SPA\n  // =========================\n  const spa = states['switch.disjoncteur_spa_interrupteur'];\n\n  let spaTexte = 'Indisponible';\n  let spaClass = 'warning';\n\n  if (spa) {\n    if (spa.state === 'on') {\n      spaTexte = 'Allumé';\n      spaClass = 'ok';\n    } else if (spa.state === 'off') {\n      spaTexte = 'Éteint';\n      spaClass = 'off';\n    }\n  }\n\n  return `\n    <div class=\"health-card\">\n\n      <div class=\"header\">\n        <div class=\"header-left\">\n          <ha-icon icon=\"mdi:home-heart\"></ha-icon>\n          <span>Santé de la maison</span>\n        </div>\n        <div class=\"global-dot\"></div>\n      </div>\n\n      <div class=\"separator\"></div>\n\n      <div class=\"ligne\">\n        <div class=\"gauche\">\n          <div class=\"status ${voletsOK ? 'ok' : 'warning'}\">\n            ${voletsOK ? '✓' : '!'}\n          </div>\n          <span class=\"label\">Volets</span>\n        </div>\n\n        <span class=\"value ${voletsOK ? 'green' : 'orange'}\">\n          ${voletsOK ? 'OK' : voletsOuverts + ' ouvert' + (voletsOuverts > 1 ? 's' : '')}\n        </span>\n      </div>\n\n      <div class=\"ligne\">\n        <div class=\"gauche\">\n          <div class=\"status ${lumieresOK ? 'ok' : 'warning'}\">\n            ${lumieresOK ? '✓' : '!'}\n          </div>\n          <span class=\"label\">Lumières</span>\n        </div>\n\n        <span class=\"value ${lumieresOK ? 'green' : 'orange'}\">\n          ${lumieresOK ? 'OK' : lumieresAllumees + ' allumée' + (lumieresAllumees > 1 ? 's' : '')}\n        </span>\n      </div>\n\n      <div class=\"ligne\">\n        <div class=\"gauche\">\n          <div class=\"status ${climClass}\">\n            ${climClass === 'warning' ? '!' : '✓'}\n          </div>\n          <span class=\"label\">Climatisation</span>\n        </div>\n        <span class=\"value ${climCouleur}\">\n          ${climTexte}\n        </span>\n      </div>\n\n      <div class=\"ligne\">\n        <div class=\"gauche\">\n          <div class=\"status ${spaClass}\">\n            ${spaClass === 'warning' ? '!' : '✓'}\n          </div>\n          <span class=\"label\">Spa</span>\n        </div>\n\n        <span class=\"value ${spaClass === 'warning' ? 'orange' : 'green'}\">\n          ${spaTexte}\n        </span>\n      </div>\n\n      <div class=\"ligne\">\n        <div class=\"gauche\">\n          <div class=\"status pending\">•</div>\n          <span class=\"label\">Caméras</span>\n        </div>\n        <span class=\"value blue\">À raccorder</span>\n      </div>\n\n    </div>\n  `;\n]]]"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "22px"
+                  },
+                  {
+                    "background": "#06131f"
+                  },
+                  {
+                    "border": "1px solid rgba(0, 190, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.25)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"info\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "100%"
+                  }
+                ],
+                "custom_fields": {
+                  "info": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": ".health-card {\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n  padding: 16px 18px;\n}\n\n.header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.header-left {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  color: white;\n  font-size: 16px;\n  font-weight: 800;\n}\n\n.header-left ha-icon {\n  width: 19px;\n  height: 19px;\n  color: #18cfff;\n}\n\n.global-dot {\n  width: 9px;\n  height: 9px;\n  border-radius: 50%;\n  background: #2ee77c;\n  box-shadow:\n    0 0 7px #2ee77c,\n    0 0 14px rgba(46, 231, 124, 0.65);\n}\n\n.separator {\n  height: 1px;\n  margin: 11px 0 8px 0;\n  background: rgba(255, 255, 255, 0.08);\n}\n\n.ligne {\n  min-height: 32px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.035);\n}\n\n.ligne:last-child {\n  border-bottom: none;\n}\n\n.gauche {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.label {\n  color: rgba(255, 255, 255, 0.95);\n  font-size: 12px;\n  font-weight: 600;\n}\n\n.value {\n  font-size: 10px;\n  font-weight: 700;\n}\n\n.green {\n  color: #2ee77c;\n}\n\n.orange {\n  color: #ffb52e;\n}\n\n.blue {\n  color: #26cfff;\n}\n\n.status {\n  width: 17px;\n  height: 17px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  border-radius: 50%;\n  font-size: 10px;\n  font-weight: 900;\n}\n\n.status.ok {\n  color: #06130c;\n  background: #2ee77c;\n  box-shadow: 0 0 6px rgba(46, 231, 124, 0.7);\n}\n\n.status.off {\n  color: #06130c;\n  background: #2ee77c;\n}\n\n.status.warning {\n  color: #071018;\n  background: #ffb52e;\n  box-shadow: 0 0 6px rgba(255, 181, 46, 0.65);\n}\n\n.status.pending {\n  color: #06131f;\n  background: #26cfff;\n  box-shadow: 0 0 6px rgba(38, 207, 255, 0.55);\n}\n"
+            },
+            {
+              "type": "custom:button-card",
+              "entity": "media_player.spotify_john",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 4
+              },
+              "triggers_update": [
+                "media_player.spotify_john"
+              ],
+              "custom_fields": {
+                "contenu": "[[[\n  const e = states['media_player.spotify_john'];\n\n  const state = e?.state || 'unknown';\n\n  const titre =\n    e?.attributes?.media_title ||\n    'Aucune lecture';\n\n  const artiste =\n    e?.attributes?.media_artist ||\n    'Spotify';\n\n  const pochette =\n    e?.attributes?.entity_picture || '';\n\n  const lecture =\n    state === 'playing';\n\n  const statut =\n    lecture\n      ? 'Lecture en cours'\n      : state === 'paused'\n        ? 'En pause'\n        : state === 'idle'\n          ? 'Prêt'\n          : 'Indisponible';\n\n  return `\n    <div class=\"ambiance-card\">\n\n      <div class=\"header\">\n\n        <div>\n          <div class=\"titre\">\n            Ambiance Spotify\n          </div>\n\n          <div class=\"statut\">\n            ${statut}\n          </div>\n        </div>\n\n        <div class=\"spotify-icon\">\n          <ha-icon icon=\"mdi:spotify\"></ha-icon>\n        </div>\n\n      </div>\n\n      <div class=\"media-zone\">\n\n        <div\n          class=\"cover\"\n          style=\"\n            background-image:\n            ${pochette\n              ? `url('${pochette}')`\n              : `linear-gradient(\n                  145deg,\n                  rgba(30,215,96,0.16),\n                  rgba(15,23,42,0.95)\n                )`\n            };\n          \"\n        >\n          ${!pochette\n            ? `<ha-icon icon=\"mdi:music-note\"></ha-icon>`\n            : ''\n          }\n        </div>\n\n        <div class=\"media-info\">\n\n          <div class=\"track\">\n            ${titre}\n          </div>\n\n          <div class=\"artist\">\n            ${artiste}\n          </div>\n\n        </div>\n\n      </div>\n\n    </div>\n  `;\n]]]\n",
+                "precedent": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:skip-previous",
+                    "show_name": false,
+                    "tap_action": {
+                      "action": "call-service",
+                      "service": "media_player.media_previous_track",
+                      "target": {
+                        "entity_id": "media_player.spotify_john"
+                      }
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "58px"
+                        },
+                        {
+                          "border-radius": "16px"
+                        },
+                        {
+                          "background": "rgba(255,255,255,0.035)"
+                        },
+                        {
+                          "border": "1px solid rgba(255,255,255,0.055)"
+                        },
+                        {
+                          "box-shadow": "none"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "28px"
+                        },
+                        {
+                          "color": "white"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "lecture": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "entity": "media_player.spotify_john",
+                    "icon": "[[[\n  return entity.state === 'playing'\n    ? 'mdi:pause'\n    : 'mdi:play';\n]]]\n",
+                    "show_name": false,
+                    "tap_action": {
+                      "action": "call-service",
+                      "service": "media_player.media_play_pause",
+                      "target": {
+                        "entity_id": "media_player.spotify_john"
+                      }
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "58px"
+                        },
+                        {
+                          "border-radius": "16px"
+                        },
+                        {
+                          "background": "rgba(30,215,96,0.12)"
+                        },
+                        {
+                          "border": "1px solid rgba(30,215,96,0.20)"
+                        },
+                        {
+                          "box-shadow": "0 0 18px rgba(30,215,96,0.10)"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "31px"
+                        },
+                        {
+                          "color": "#1ed760"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "suivant": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:skip-next",
+                    "show_name": false,
+                    "tap_action": {
+                      "action": "call-service",
+                      "service": "media_player.media_next_track",
+                      "target": {
+                        "entity_id": "media_player.spotify_john"
+                      }
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "58px"
+                        },
+                        {
+                          "border-radius": "16px"
+                        },
+                        {
+                          "background": "rgba(255,255,255,0.035)"
+                        },
+                        {
+                          "border": "1px solid rgba(255,255,255,0.055)"
+                        },
+                        {
+                          "box-shadow": "none"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "28px"
+                        },
+                        {
+                          "color": "white"
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "styles": {
+                "card": [
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "padding": "16px 18px"
+                  },
+                  {
+                    "box-sizing": "border-box"
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "22px"
+                  },
+                  {
+                    "background": "#06131f"
+                  },
+                  {
+                    "border": "1px solid rgba(30,215,96,0.18)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.25)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu contenu contenu\"\n\"precedent lecture suivant\"\n"
+                  },
+                  {
+                    "grid-template-columns": "1fr 1fr 1fr"
+                  },
+                  {
+                    "grid-template-rows": "155px 58px"
+                  },
+                  {
+                    "column-gap": "8px"
+                  },
+                  {
+                    "row-gap": "8px"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    }
+                  ],
+                  "precedent": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "lecture": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "suivant": [
+                    {
+                      "width": "100%"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.ambiance-card {\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n}\n\n.header {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n}\n\n.titre {\n  color: white;\n  font-size: 16px;\n  font-weight: 800;\n}\n\n.statut {\n  margin-top: 5px;\n\n  color: #1ed760;\n\n  font-size: 9px;\n  font-weight: 700;\n}\n\n.spotify-icon {\n  width: 38px;\n  height: 38px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 50%;\n\n  background: rgba(30,215,96,0.10);\n\n  box-shadow:\n    0 0 18px rgba(30,215,96,0.22);\n}\n\n.spotify-icon ha-icon {\n  width: 25px;\n  height: 25px;\n\n  color: #1ed760;\n}\n\n.media-zone {\n  margin-top: 14px;\n\n  display: flex;\n  align-items: center;\n\n  gap: 12px;\n}\n\n.cover {\n  width: 74px;\n  height: 74px;\n\n  flex: 0 0 74px;\n\n  border-radius: 14px;\n\n  background-size: cover;\n  background-position: center;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  overflow: hidden;\n\n  box-shadow:\n    0 8px 18px rgba(0,0,0,0.30);\n}\n\n.cover ha-icon {\n  width: 31px;\n  height: 31px;\n\n  color: #1ed760;\n}\n\n.media-info {\n  min-width: 0;\n  text-align: left;\n}\n\n.track {\n  color: white;\n\n  font-size: 13px;\n  font-weight: 800;\n\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.artist {\n  margin-top: 6px;\n\n  color: rgba(180,198,212,0.72);\n\n  font-size: 10px;\n\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n@media (max-width: 1100px) {\n\n  .titre {\n    font-size: 14px;\n  }\n\n  .cover {\n    width: 64px;\n    height: 64px;\n    flex-basis: 64px;\n  }\n\n  .track {\n    font-size: 12px;\n  }\n\n  .artist {\n    font-size: 9px;\n  }\n}\n"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 4.6
+              },
+              "custom_fields": {
+                "contenu": "[[[\n  return `\n    <div class=\"soleil-v7\">\n\n      <div class=\"header\">\n\n        <div>\n          <div class=\"titre\">\n            Soleil\n          </div>\n\n          <div class=\"etat\">\n            <span class=\"point\"></span>\n            Soleil levé\n          </div>\n        </div>\n\n        <div class=\"soleil-icon\">\n          ☀️\n        </div>\n\n      </div>\n\n      <div class=\"separateur\"></div>\n\n      <div class=\"infos\">\n\n        <div class=\"ligne\">\n\n          <div class=\"nom\">\n            <span class=\"emoji\">🌅</span>\n            Lever\n          </div>\n\n          <div class=\"heure\">\n            06:30\n          </div>\n\n        </div>\n\n        <div class=\"ligne\">\n\n          <div class=\"nom\">\n            <span class=\"emoji\">🌇</span>\n            Coucher\n          </div>\n\n          <div class=\"heure\">\n            21:04\n          </div>\n\n        </div>\n\n      </div>\n\n      <div class=\"separateur bas\"></div>\n\n      <div class=\"prochain\">\n\n        <span>\n          Prochain événement\n        </span>\n\n        <div>\n          <strong>Coucher</strong>\n          <b>21:04</b>\n        </div>\n\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "100%"
+                  },
+                  {
+                    "justify-self": "start"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3, 17, 31, 0.98), rgba(3, 11, 22, 0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0, 180, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "300px"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "300px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.soleil-v7 {\n\n  width: 100%;\n  height: 300px;\n\n  box-sizing: border-box;\n\n  padding: 22px 22px 18px;\n\n  display: flex;\n  flex-direction: column;\n\n  color: white;\n  text-align: left;\n\n}\n\n\n/* ============================= */\n/* HEADER                        */\n/* ============================= */\n\n.header {\n\n  display: flex;\n\n  align-items: flex-start;\n  justify-content: space-between;\n\n  flex-shrink: 0;\n\n}\n\n\n.titre {\n\n  font-size: 17px;\n  font-weight: 700;\n\n  color: white;\n\n}\n\n\n.etat {\n\n  margin-top: 9px;\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 6px;\n\n  font-size: 11px;\n  font-weight: 600;\n\n  color: #2ce77c;\n\n}\n\n\n.point {\n\n  width: 7px;\n  height: 7px;\n\n  border-radius: 50%;\n\n  background: #ffb020;\n\n  box-shadow:\n    0 0 6px rgba(255, 176, 32, 0.8);\n\n}\n\n\n/* ============================= */\n/* SOLEIL                        */\n/* ============================= */\n\n.soleil-icon {\n\n  font-size: 34px;\n\n  line-height: 1;\n\n  filter:\n    drop-shadow(\n      0 0 8px rgba(255, 180, 40, 0.35)\n    );\n\n}\n\n\n/* ============================= */\n/* SEPARATEURS                   */\n/* ============================= */\n\n.separateur {\n\n  width: 100%;\n  height: 1px;\n\n  flex-shrink: 0;\n\n  margin: 16px 0;\n\n  background:\n    rgba(255, 255, 255, 0.07);\n\n}\n\n\n.separateur.bas {\n\n  margin:\n    16px 0 13px;\n\n}\n\n\n/* ============================= */\n/* LEVER / COUCHER               */\n/* ============================= */\n\n.infos {\n\n  display: flex;\n\n  flex-direction: column;\n\n  gap: 15px;\n\n}\n\n\n.ligne {\n\n  width: 100%;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: space-between;\n\n}\n\n\n.nom {\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 9px;\n\n  font-size: 12px;\n  font-weight: 500;\n\n  color:\n    rgba(245, 248, 252, 0.94);\n\n}\n\n\n.emoji {\n\n  font-size: 16px;\n\n}\n\n\n.heure {\n\n  font-size: 12px;\n  font-weight: 700;\n\n  color: white;\n\n}\n\n\n/* ============================= */\n/* PROCHAIN EVENEMENT            */\n/* ============================= */\n\n.prochain {\n\n  margin-top: auto;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: space-between;\n\n  gap: 10px;\n\n  font-size: 10px;\n\n  color:\n    rgba(180, 195, 207, 0.72);\n\n}\n\n\n.prochain div {\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 7px;\n\n}\n\n\n.prochain strong {\n\n  color: #25cfff;\n\n  font-size: 10px;\n  font-weight: 600;\n\n}\n\n\n.prochain b {\n\n  color: white;\n\n  font-size: 10px;\n  font-weight: 600;\n\n}\n\n\n/* ============================= */\n/* TABLETTE                      */\n/* ============================= */\n\n@media (max-width: 1100px) {\n\n  .soleil-v7 {\n\n    padding:\n      18px 18px 15px;\n\n  }\n\n\n  .titre {\n\n    font-size: 15px;\n\n  }\n\n\n  .soleil-icon {\n\n    font-size: 29px;\n\n  }\n\n\n  .etat {\n\n    font-size: 10px;\n\n  }\n\n\n  .infos {\n\n    gap: 12px;\n\n  }\n\n\n  .nom,\n  .heure {\n\n    font-size: 11px;\n\n  }\n\n\n  .prochain {\n\n    font-size: 9px;\n\n  }\n\n\n  .prochain strong,\n  .prochain b {\n\n    font-size: 9px;\n\n  }\n\n}\n",
+              "triggers_update": []
+            },
+            {
+              "type": "custom:button-card",
+              "entity": "calendar.famille_blaise",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 4
+              },
+              "triggers_update": [
+                "calendar.famille_blaise"
+              ],
+              "custom_fields": {
+                "contenu": "[[[\n  const cal = states['calendar.famille_blaise'];\n\n  const message =\n    cal?.attributes?.message ||\n    'Aucun événement à venir';\n\n  const start =\n    cal?.attributes?.start_time || null;\n\n  const allDay =\n    cal?.attributes?.all_day === true;\n\n  let jour = '--';\n  let mois = '---';\n  let heure = '';\n  let info = 'Aucun horaire';\n\n  if (start) {\n    const d = new Date(start);\n\n    if (!isNaN(d.getTime())) {\n\n      jour = d.toLocaleDateString('fr-FR', {\n        day: '2-digit'\n      });\n\n      mois = d.toLocaleDateString('fr-FR', {\n        month: 'short'\n      }).replace('.', '').toUpperCase();\n\n      if (allDay) {\n        info = 'Journée entière';\n      } else {\n        heure = d.toLocaleTimeString('fr-FR', {\n          hour: '2-digit',\n          minute: '2-digit'\n        });\n\n        info = heure;\n      }\n    }\n  }\n\n  return `\n    <div class=\"agenda-card\">\n\n      <div class=\"agenda-header\">\n\n        <div>\n          <div class=\"agenda-title\">\n            Agenda\n          </div>\n\n          <div class=\"agenda-subtitle\">\n            Famille Blaise\n          </div>\n        </div>\n\n        <div class=\"agenda-icon\">\n          <ha-icon icon=\"mdi:calendar-month\"></ha-icon>\n        </div>\n\n      </div>\n\n      <div class=\"agenda-separator\"></div>\n\n      <div class=\"agenda-main\">\n\n        <div class=\"date-box\">\n          <div class=\"date-day\">\n            ${jour}\n          </div>\n\n          <div class=\"date-month\">\n            ${mois}\n          </div>\n        </div>\n\n        <div class=\"event-box\">\n\n          <div class=\"event-small\">\n            Prochain événement\n          </div>\n\n          <div class=\"event-title\">\n            ${message}\n          </div>\n\n        </div>\n\n      </div>\n\n      <div class=\"event-meta\">\n\n        <ha-icon icon=\"${allDay ? 'mdi:calendar-blank' : 'mdi:clock-outline'}\"></ha-icon>\n\n        <span>\n          ${info}\n        </span>\n\n      </div>\n\n      <div class=\"agenda-footer\">\n        <span>Voir l’agenda complet</span>\n        <ha-icon icon=\"mdi:chevron-right\"></ha-icon>\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "tap_action": {
+                "action": "navigate",
+                "navigation_path": "/calendar"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "22px"
+                  },
+                  {
+                    "background": "#06131f"
+                  },
+                  {
+                    "border": "1px solid rgba(147, 91, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.25)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "100%"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.agenda-card {\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n\n  padding: 16px 18px;\n\n  display: flex;\n  flex-direction: column;\n\n  text-align: left;\n}\n\n.agenda-header {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n}\n\n.agenda-title {\n  color: white;\n  font-size: 16px;\n  font-weight: 800;\n}\n\n.agenda-subtitle {\n  margin-top: 4px;\n\n  color: #a46cff;\n\n  font-size: 9px;\n  font-weight: 700;\n}\n\n.agenda-icon {\n  width: 38px;\n  height: 38px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 13px;\n\n  background: rgba(164,108,255,0.10);\n\n  box-shadow:\n    0 0 15px rgba(164,108,255,0.18);\n}\n\n.agenda-icon ha-icon {\n  width: 23px;\n  height: 23px;\n  color: #a46cff;\n}\n\n.agenda-separator {\n  height: 1px;\n  margin: 12px 0 13px;\n  background: rgba(255,255,255,0.07);\n}\n\n.agenda-main {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n}\n\n.date-box {\n  width: 66px;\n  height: 66px;\n\n  flex: 0 0 66px;\n\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 15px;\n\n  background:\n    linear-gradient(\n      145deg,\n      rgba(164,108,255,0.15),\n      rgba(164,108,255,0.06)\n    );\n\n  border:\n    1px solid rgba(164,108,255,0.16);\n}\n\n.date-day {\n  color: white;\n  font-size: 23px;\n  font-weight: 800;\n  line-height: 1;\n}\n\n.date-month {\n  margin-top: 5px;\n\n  color: #a46cff;\n  font-size: 9px;\n  font-weight: 800;\n  letter-spacing: 0.5px;\n}\n\n.event-box {\n  min-width: 0;\n  flex: 1;\n}\n\n.event-small {\n  color: rgba(170,190,205,0.66);\n  font-size: 8px;\n}\n\n.event-title {\n  margin-top: 5px;\n\n  color: white;\n\n  font-size: 13px;\n  font-weight: 800;\n\n  line-height: 1.25;\n\n  display: -webkit-box;\n  -webkit-line-clamp: 2;\n  -webkit-box-orient: vertical;\n\n  overflow: hidden;\n}\n\n.event-meta {\n  margin-top: 12px;\n\n  height: 28px;\n\n  display: flex;\n  align-items: center;\n\n  gap: 7px;\n\n  color: rgba(200,210,220,0.82);\n\n  font-size: 9px;\n  font-weight: 600;\n}\n\n.event-meta ha-icon {\n  width: 15px;\n  height: 15px;\n  color: #a46cff;\n}\n\n.agenda-footer {\n  margin-top: auto;\n\n  height: 32px;\n\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n\n  padding: 0 10px;\n\n  border-radius: 10px;\n\n  background: rgba(164,108,255,0.07);\n\n  color: #a46cff;\n\n  font-size: 9px;\n  font-weight: 700;\n}\n\n.agenda-footer ha-icon {\n  width: 16px;\n  height: 16px;\n}\n\n@media (max-width: 1100px) {\n\n  .agenda-title {\n    font-size: 14px;\n  }\n\n  .date-box {\n    width: 60px;\n    height: 60px;\n    flex-basis: 60px;\n  }\n\n  .date-day {\n    font-size: 21px;\n  }\n\n  .event-title {\n    font-size: 12px;\n  }\n}\n"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 4
+              },
+              "variables": {
+                "doorbell": "event.d340w_button_press",
+                "lock": "lock.wifi_access_oled"
+              },
+              "triggers_update": [
+                "[[[ return variables.doorbell ]]]",
+                "[[[ return variables.lock ]]]"
+              ],
+              "custom_fields": {
+                "titre": "[[[\n  const lockState = hass.states[variables.lock]?.state;\n  const ev = hass.states[variables.doorbell];\n\n  const derniere = ev && ev.state !== 'unavailable'\n    ? new Date(ev.last_changed).getTime()\n    : 0;\n\n  const sonne = (Date.now() - derniere) < 30000;\n  const ouverte = lockState === 'unlocked';\n\n  let statut = 'Entrée en direct';\n  let couleur = '#28e987';\n  let icone = 'mdi:doorbell';\n\n  if (sonne) {\n    statut = 'QUELQU’UN SONNE !';\n    couleur = '#ffb020';\n    icone = 'mdi:bell-ring';\n  } else if (ouverte) {\n    statut = 'PORTILLON OUVERT';\n    couleur = '#28e987';\n    icone = 'mdi:door-open';\n  }\n\n  return `\n    <div class=\"camera-header ${sonne ? 'header-sonne' : ''}\">\n\n      <div>\n        <div class=\"camera-titre\">\n          Visiophone\n        </div>\n\n        <div\n          class=\"camera-statut\"\n          style=\"color:${couleur}\"\n        >\n          <span\n            class=\"camera-point\"\n            style=\"\n              background:${couleur};\n              box-shadow:0 0 8px ${couleur};\n            \"\n          ></span>\n\n          ${statut}\n        </div>\n      </div>\n\n      <div\n        class=\"camera-icon\"\n        style=\"\n          background:rgba(41,198,255,0.11);\n        \"\n      >\n        <ha-icon\n          icon=\"${icone}\"\n          style=\"color:${couleur}\"\n        ></ha-icon>\n      </div>\n\n    </div>\n  `;\n]]]\n",
+                "video": {
+                  "card": {
+                    "type": "picture-entity",
+                    "entity": "camera.d340w_fluide",
+                    "camera_image": "camera.d340w_fluide",
+                    "camera_view": "live",
+                    "show_name": false,
+                    "show_state": false,
+                    "tap_action": {
+                      "action": "more-info"
+                    },
+                    "hold_action": {
+                      "action": "more-info"
+                    },
+                    "card_mod": {
+                      "style": "ha-card {\n  height: 100% !important;\n  width: 100% !important;\n  border-radius: 12px !important;\n  overflow: hidden !important;\n  border: 1px solid rgba(41,198,255,0.16) !important;\n  box-shadow: 0 0 18px rgba(41,198,255,0.06) !important;\n  background: #06131f !important;\n}\nha-card > * {\n  height: 100% !important;\n  width: 100% !important;\n}\nhui-image {\n  height: 100% !important;\n  --control-height: 0px !important;\n}\nhui-image img,\nhui-image video,\nha-camera-stream {\n  width: 100% !important;\n  height: 100% !important;\n  object-fit: cover !important;\n  border-radius: 12px !important;\n  display: block !important;\n}\n"
+                    }
+                  }
+                },
+                "sonnerie": "[[[\n  const ev = hass.states[variables.doorbell];\n\n  const derniere = ev && ev.state !== 'unavailable'\n    ? new Date(ev.last_changed).getTime()\n    : 0;\n\n  const active = (Date.now() - derniere) < 30000;\n\n  if (active) {\n    return `\n      <div class=\"ring-badge ring-active\">\n\n        <ha-icon icon=\"mdi:bell-ring\"></ha-icon>\n\n        <span>\n          QUELQU'UN SONNE !\n        </span>\n\n      </div>\n    `;\n  }\n\n  return `\n    <div class=\"ring-badge\">\n\n      <ha-icon icon=\"mdi:shield-check-outline\"></ha-icon>\n\n      <span>\n        Surveillance active\n      </span>\n\n    </div>\n  `;\n]]]\n",
+                "boutons": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "show_name": false,
+                    "show_icon": false,
+                    "show_state": false,
+                    "custom_fields": {
+                      "ouvrir": "[[[\n  const verrou = hass.states[variables.lock]?.state;\n\n  if (verrou === 'unlocked') {\n    return `\n      <div class=\"btn-ouvrir ouvert\">\n\n        <ha-icon icon=\"mdi:door-open\"></ha-icon>\n\n        <span>\n          PORTILLON OUVERT\n        </span>\n\n      </div>\n    `;\n  }\n\n  return `\n    <div class=\"btn-ouvrir\">\n\n      <ha-icon icon=\"mdi:lock-open-variant\"></ha-icon>\n\n      <span>\n        OUVRIR LE PORTILLON\n      </span>\n\n    </div>\n  `;\n]]]\n",
+                      "plein_ecran": "[[[\n  return `\n    <div class=\"btn-info\">\n\n      <ha-icon icon=\"mdi:fullscreen\"></ha-icon>\n\n      <span>\n        PLEIN ÉCRAN\n      </span>\n\n    </div>\n  `;\n]]]\n"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "58px"
+                        },
+                        {
+                          "padding": 0
+                        },
+                        {
+                          "overflow": "hidden"
+                        },
+                        {
+                          "border-radius": "12px"
+                        },
+                        {
+                          "background": "none"
+                        },
+                        {
+                          "border": "none"
+                        },
+                        {
+                          "box-shadow": "none"
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"ouvrir plein_ecran\""
+                        },
+                        {
+                          "grid-template-columns": "68% 32%"
+                        },
+                        {
+                          "grid-template-rows": "100%"
+                        }
+                      ],
+                      "custom_fields": {
+                        "ouvrir": [
+                          {
+                            "width": "100%"
+                          },
+                          {
+                            "height": "100%"
+                          }
+                        ],
+                        "plein_ecran": [
+                          {
+                            "width": "100%"
+                          },
+                          {
+                            "height": "100%"
+                          }
+                        ]
+                      }
+                    },
+                    "extra_styles": "\n.btn-ouvrir,\n.btn-info {\n\n  width: 100%;\n  height: 100%;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: center;\n\n  gap: 7px;\n\n  border-radius: 12px;\n\n  font-size: 10px;\n  font-weight: 800;\n\n  letter-spacing: 0.4px;\n\n  box-sizing: border-box;\n\n  transition:\n    transform 0.15s ease,\n    background 0.2s ease,\n    border 0.2s ease;\n}\n\n\n/* =========================\n   OUVERTURE\n   ========================= */\n\n.btn-ouvrir {\n\n  background:\n    linear-gradient(\n      145deg,\n      rgba(41,198,255,0.18),\n      rgba(41,198,255,0.06)\n    );\n\n  border:\n    1px solid rgba(41,198,255,0.40);\n\n  color: #29c6ff;\n\n  box-shadow:\n    0 0 12px rgba(41,198,255,0.06);\n}\n\n\n.btn-ouvrir.ouvert {\n\n  background:\n    linear-gradient(\n      145deg,\n      rgba(40,233,135,0.18),\n      rgba(40,233,135,0.06)\n    );\n\n  border:\n    1px solid rgba(40,233,135,0.42);\n\n  color: #28e987;\n\n  box-shadow:\n    0 0 14px rgba(40,233,135,0.10);\n}\n\n\n.btn-ouvrir:active,\n.btn-info:active {\n\n  transform: scale(0.97);\n}\n\n\n.btn-ouvrir ha-icon {\n\n  width: 17px;\n  height: 17px;\n}\n\n\n/* =========================\n   PLEIN ÉCRAN\n   ========================= */\n\n.btn-info {\n\n  background:\n    rgba(255,255,255,0.05);\n\n  border:\n    1px solid rgba(255,255,255,0.09);\n\n  color:\n    rgba(210,225,235,0.78);\n}\n\n\n.btn-info ha-icon {\n\n  width: 16px;\n  height: 16px;\n}\n"
+                  }
+                },
+                "triggers_update": "all"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "100%"
+                  },
+                  {
+                    "justify-self": "start"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0,180,255,0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"titre\"\n\"video\"\n\"sonnerie\"\n\"boutons\"\n"
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "62px 120px 30px 58px"
+                  },
+                  {
+                    "row-gap": "8px"
+                  }
+                ],
+                "custom_fields": {
+                  "titre": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    },
+                    {
+                      "padding": "18px 20px 0"
+                    },
+                    {
+                      "box-sizing": "border-box"
+                    }
+                  ],
+                  "video": [
+                    {
+                      "width": "calc(100% - 40px)"
+                    },
+                    {
+                      "margin-left": "20px"
+                    }
+                  ],
+                  "sonnerie": [
+                    {
+                      "width": "calc(100% - 40px)"
+                    },
+                    {
+                      "margin-left": "20px"
+                    },
+                    {
+                      "padding": "4px 10px"
+                    },
+                    {
+                      "box-sizing": "border-box"
+                    }
+                  ],
+                  "boutons": [
+                    {
+                      "width": "calc(100% - 40px)"
+                    },
+                    {
+                      "margin-left": "20px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n/* =========================\n   HEADER\n   ========================= */\n\n.camera-header {\n\n  display: flex;\n\n  align-items: flex-start;\n\n  justify-content: space-between;\n\n  padding-bottom: 10px;\n\n  border-bottom:\n    1px solid rgba(255,255,255,0.07);\n}\n\n\n.camera-titre {\n\n  color: white;\n\n  font-size: 17px;\n\n  font-weight: 700;\n}\n\n\n.camera-statut {\n\n  margin-top: 6px;\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 6px;\n\n  font-size: 10px;\n\n  font-weight: 700;\n}\n\n\n.camera-point {\n\n  width: 6px;\n  height: 6px;\n\n  flex: 0 0 6px;\n\n  border-radius: 50%;\n}\n\n\n.camera-icon {\n\n  width: 38px;\n  height: 38px;\n\n  flex: 0 0 38px;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 13px;\n\n  box-shadow:\n    0 0 14px rgba(41,198,255,0.22);\n}\n\n\n.camera-icon ha-icon {\n\n  width: 22px;\n  height: 22px;\n}\n\n\n/* =========================\n   SONNERIE\n   ========================= */\n\n.ring-badge {\n\n  height: 100%;\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 6px;\n\n  font-size: 9px;\n\n  font-weight: 700;\n\n  letter-spacing: 0.6px;\n\n  color:\n    rgba(140,160,175,0.8);\n}\n\n\n.ring-badge ha-icon {\n\n  width: 13px;\n  height: 13px;\n}\n\n\n.ring-badge.ring-active {\n\n  color: #ffb020;\n\n  animation:\n    ring-pulse 1s ease-in-out infinite;\n}\n\n\n.ring-badge.ring-active ha-icon {\n\n  color: #ffb020;\n\n  filter:\n    drop-shadow(0 0 5px rgba(255,176,32,0.9));\n}\n\n\n@keyframes ring-pulse {\n\n  0%,\n  100% {\n    opacity: 1;\n  }\n\n  50% {\n    opacity: 0.35;\n  }\n\n}\n"
+            },
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 4
+              },
+              "custom_fields": {
+                "titre": "[[[\n  return `\n    <div class=\"camera-header\">\n\n      <div>\n        <div class=\"camera-titre\">\n          Caméras\n        </div>\n\n        <div class=\"camera-statut\">\n          <span class=\"camera-point\"></span>\n          Surveillance active\n        </div>\n      </div>\n\n      <div class=\"camera-icon\">\n        <ha-icon icon=\"mdi:cctv\"></ha-icon>\n      </div>\n\n    </div>\n  `;\n]]]\n",
+                "entree": {
+                  "card": {
+                    "type": "picture-entity",
+                    "entity": "camera.d340w_fluide",
+                    "camera_image": "camera.d340w_fluide",
+                    "camera_view": "live",
+                    "show_name": false,
+                    "show_state": false,
+                    "aspect_ratio": "3/1",
+                    "tap_action": {
+                      "action": "more-info"
+                    },
+                    "hold_action": {
+                      "action": "more-info"
+                    },
+                    "card_mod": {
+                      "style": "ha-card {\n  height: 87px !important;\n\n  border-radius: 11px !important;\n\n  overflow: hidden !important;\n\n  border:\n    1px solid rgba(255,255,255,0.06) !important;\n\n  box-shadow: none !important;\n\n  background: #06131f !important;\n}\n\nhui-image {\n  height: 87px !important;\n}\n"
+                    }
+                  }
+                },
+                "pool": {
+                  "card": {
+                    "type": "picture-entity",
+                    "entity": "camera.pool_house_camera_pool_house_profile_000",
+                    "camera_image": "camera.pool_house_camera_pool_house_profile_000",
+                    "camera_view": "live",
+                    "show_name": false,
+                    "show_state": false,
+                    "aspect_ratio": "3/1",
+                    "tap_action": {
+                      "action": "more-info"
+                    },
+                    "hold_action": {
+                      "action": "more-info"
+                    },
+                    "card_mod": {
+                      "style": "ha-card {\n  height: 87px !important;\n\n  border-radius: 11px !important;\n\n  overflow: hidden !important;\n\n  border:\n    1px solid rgba(255,255,255,0.06) !important;\n\n  box-shadow: none !important;\n\n  background: #06131f !important;\n}\n\nhui-image {\n  height: 87px !important;\n}\n"
+                    }
+                  }
+                }
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "100%"
+                  },
+                  {
+                    "justify-self": "start"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0,180,255,0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"titre\"\n\"entree\"\n\"pool\"\n"
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "83px 87px 87px"
+                  },
+                  {
+                    "row-gap": "8px"
+                  }
+                ],
+                "custom_fields": {
+                  "titre": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "100%"
+                    },
+                    {
+                      "padding": "18px 20px 0"
+                    },
+                    {
+                      "box-sizing": "border-box"
+                    }
+                  ],
+                  "entree": [
+                    {
+                      "width": "calc(100% - 40px)"
+                    },
+                    {
+                      "margin-left": "20px"
+                    }
+                  ],
+                  "pool": [
+                    {
+                      "width": "calc(100% - 40px)"
+                    },
+                    {
+                      "margin-left": "20px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.camera-header {\n  display: flex;\n\n  align-items: flex-start;\n  justify-content: space-between;\n\n  padding-bottom: 10px;\n\n  border-bottom:\n    1px solid rgba(255,255,255,0.07);\n}\n\n\n.camera-titre {\n  color: white;\n\n  font-size: 17px;\n  font-weight: 700;\n}\n\n\n.camera-statut {\n  margin-top: 6px;\n\n  display: flex;\n  align-items: center;\n\n  gap: 6px;\n\n  color: #28e987;\n\n  font-size: 10px;\n  font-weight: 600;\n}\n\n\n.camera-point {\n  width: 6px;\n  height: 6px;\n\n  flex: 0 0 6px;\n\n  border-radius: 50%;\n\n  background: #28e987;\n\n  box-shadow:\n    0 0 7px rgba(40,233,135,0.8);\n}\n\n\n.camera-icon {\n  width: 38px;\n  height: 38px;\n\n  flex: 0 0 38px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 13px;\n\n  background:\n    rgba(41,198,255,0.11);\n\n  box-shadow:\n    0 0 14px rgba(41,198,255,0.22);\n}\n\n\n.camera-icon ha-icon {\n  width: 22px;\n  height: 22px;\n\n  color: #29c6ff;\n}\n"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "entity": "sensor.linky_19446454395641_consumption",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 5
+              },
+              "triggers_update": [
+                "sensor.linky_19446454395641_consumption",
+                "sensor.rte_tempo_couleur_actuelle",
+                "sensor.rte_tempo_prochaine_couleur",
+                "binary_sensor.rte_tempo_heures_creuses",
+                "sensor.rte_tempo_cycle_jours_restants_bleu",
+                "sensor.rte_tempo_cycle_jours_restants_blanc",
+                "sensor.rte_tempo_cycle_jours_restants_rouge",
+                "sensor.edf_tempo_price_blue_hc",
+                "sensor.edf_tempo_price_blue_hp",
+                "sensor.edf_tempo_price_white_hc",
+                "sensor.edf_tempo_price_white_hp",
+                "sensor.edf_tempo_price_red_hc",
+                "sensor.edf_tempo_price_red_hp"
+              ],
+              "custom_fields": {
+                "contenu": "[[[\n  const e = states['sensor.linky_19446454395641_consumption'];\n\n  if (!e) {\n    return `\n      <div class=\"energie-v7\">\n        <div class=\"erreur\">Capteur Linky indisponible</div>\n      </div>\n    `;\n  }\n\n  const state = parseFloat(e.state);\n\n  const hier = isNaN(state)\n    ? '--'\n    : state.toFixed(1).replace('.', ',');\n\n  const semaine = e.attributes.current_week !== undefined\n    ? Number(e.attributes.current_week).toFixed(1).replace('.', ',')\n    : '--';\n\n  const semaineDerniere = e.attributes.last_week !== undefined\n    ? Number(e.attributes.last_week).toFixed(1).replace('.', ',')\n    : '--';\n\n  const mois = e.attributes.current_month !== undefined\n    ? Number(e.attributes.current_month).toFixed(1).replace('.', ',')\n    : '--';\n\n  const tempoActuel =\n    states['sensor.rte_tempo_couleur_actuelle'];\n\n  const tempoDemain =\n    states['sensor.rte_tempo_prochaine_couleur'];\n\n  const heuresCreuses =\n    states['binary_sensor.rte_tempo_heures_creuses'];\n\n  const joursBleus =\n    states['sensor.rte_tempo_cycle_jours_restants_bleu'];\n\n  const joursBlancs =\n    states['sensor.rte_tempo_cycle_jours_restants_blanc'];\n\n  const joursRouges =\n    states['sensor.rte_tempo_cycle_jours_restants_rouge'];\n\n  const couleurAujourdHui =\n    tempoActuel ? tempoActuel.state : 'Inconnu';\n\n  const couleurDemain =\n    tempoDemain ? tempoDemain.state : 'Inconnu';\n\n  const normaliseCouleur = (value) => {\n    const v = String(value || '').toLowerCase().trim();\n\n    if (v.includes('bleu') || v === 'blue') return 'Bleu';\n    if (v.includes('blanc') || v === 'white') return 'Blanc';\n    if (v.includes('rouge') || v === 'red') return 'Rouge';\n\n    return '--';\n  };\n\n  const tempoColor = (value) => {\n    const v = String(value || '').toLowerCase().trim();\n\n    if (v.includes('bleu') || v === 'blue') return '#3f8cff';\n    if (v.includes('blanc') || v === 'white') return '#f4f4f5';\n    if (v.includes('rouge') || v === 'red') return '#ff4d67';\n\n    return '#81909d';\n  };\n\n  const todayName =\n    normaliseCouleur(couleurAujourdHui);\n\n  const tomorrowName =\n    normaliseCouleur(couleurDemain);\n\n  const cToday =\n    tempoColor(couleurAujourdHui);\n\n  const cTomorrow =\n    tempoColor(couleurDemain);\n\n  const tarif =\n    heuresCreuses &&\n    heuresCreuses.state === 'on'\n      ? 'HC'\n      : 'HP';\n\n  const safeState = (entity) => {\n    if (!entity) return '--';\n\n    if (\n      ['unknown', 'unavailable']\n        .includes(entity.state)\n    ) {\n      return '--';\n    }\n\n    return entity.state;\n  };\n\n  const joursB = safeState(joursBleus);\n  const joursW = safeState(joursBlancs);\n  const joursR = safeState(joursRouges);\n\n  const blueHC =\n    Number(states['sensor.edf_tempo_price_blue_hc']?.state);\n\n  const blueHP =\n    Number(states['sensor.edf_tempo_price_blue_hp']?.state);\n\n  const whiteHC =\n    Number(states['sensor.edf_tempo_price_white_hc']?.state);\n\n  const whiteHP =\n    Number(states['sensor.edf_tempo_price_white_hp']?.state);\n\n  const redHC =\n    Number(states['sensor.edf_tempo_price_red_hc']?.state);\n\n  const redHP =\n    Number(states['sensor.edf_tempo_price_red_hp']?.state);\n\n  let prixHC = blueHC;\n  let prixHP = blueHP;\n\n  const couleurPrix =\n    String(couleurAujourdHui).toLowerCase();\n\n  if (\n    couleurPrix.includes('blanc') ||\n    couleurPrix === 'white'\n  ) {\n    prixHC = whiteHC;\n    prixHP = whiteHP;\n  }\n\n  if (\n    couleurPrix.includes('rouge') ||\n    couleurPrix === 'red'\n  ) {\n    prixHC = redHC;\n    prixHP = redHP;\n  }\n\n  const prixMoyen =\n    (!isNaN(prixHC) && !isNaN(prixHP))\n      ? ((prixHC * 8) + (prixHP * 16)) / 24\n      : NaN;\n\n  const cout =\n    !isNaN(state) && !isNaN(prixMoyen)\n      ? (state * prixMoyen)\n          .toFixed(2)\n          .replace('.', ',')\n      : '--';\n\n  return `\n\n    <div class=\"energie-v7\">\n\n      <div class=\"header\">\n\n        <div>\n          <div class=\"titre\">\n            Énergie\n          </div>\n\n          <div class=\"status\">\n            <span class=\"status-dot\"></span>\n            Linky connecté\n          </div>\n        </div>\n\n        <div class=\"header-icon\">\n          <ha-icon icon=\"mdi:lightning-bolt\"></ha-icon>\n        </div>\n\n      </div>\n\n\n      <div class=\"principal\">\n\n        <div class=\"conso\">\n\n          <div class=\"label\">\n            Consommation hier\n          </div>\n\n          <div class=\"conso-value\">\n            ${hier}\n            <span>kWh</span>\n          </div>\n\n        </div>\n\n\n        <div class=\"wallet\">\n          <ha-icon icon=\"mdi:wallet-outline\"></ha-icon>\n        </div>\n\n\n        <div class=\"cout\">\n\n          <div class=\"label\">\n            Coût hier\n          </div>\n\n          <div class=\"cout-value\">\n            ${cout} €\n          </div>\n\n        </div>\n\n      </div>\n\n\n      <div class=\"tempo\">\n\n        <div class=\"tempo-title\">\n          TEMPO\n        </div>\n\n        <div class=\"tempo-day\">\n\n          <span\n            class=\"dot\"\n            style=\"\n              background:${cToday};\n              box-shadow:0 0 7px ${cToday};\n            \">\n          </span>\n\n          <div>\n            <small>Auj.</small>\n            <strong>${todayName}</strong>\n          </div>\n\n        </div>\n\n        <div class=\"arrow\">\n          →\n        </div>\n\n        <div class=\"tempo-day\">\n\n          <span\n            class=\"dot\"\n            style=\"\n              background:${cTomorrow};\n              box-shadow:0 0 7px ${cTomorrow};\n            \">\n          </span>\n\n          <div>\n            <small>Dem.</small>\n            <strong>${tomorrowName}</strong>\n          </div>\n\n        </div>\n\n        <div class=\"tarif\">\n\n          <small>Tarif</small>\n\n          <strong>\n            ${tarif}\n          </strong>\n\n        </div>\n\n        <div class=\"days\">\n\n          <div class=\"day blue\">\n            <b>B</b>\n            <span>${joursB}</span>\n          </div>\n\n          <div class=\"day white\">\n            <b>W</b>\n            <span>${joursW}</span>\n          </div>\n\n          <div class=\"day red\">\n            <b>R</b>\n            <span>${joursR}</span>\n          </div>\n\n        </div>\n\n      </div>\n\n\n      <div class=\"stats\">\n\n        <div class=\"stat\">\n\n          <div class=\"stat-icon blue-icon\">\n            <ha-icon icon=\"mdi:calendar-week\"></ha-icon>\n          </div>\n\n          <div class=\"stat-text\">\n\n            <span>\n              Sem. en cours\n            </span>\n\n            <strong>\n              ${semaine}\n              <small>kWh</small>\n            </strong>\n\n          </div>\n\n        </div>\n\n\n        <div class=\"stat\">\n\n          <div class=\"stat-icon purple-icon\">\n            <ha-icon icon=\"mdi:calendar-arrow-left\"></ha-icon>\n          </div>\n\n          <div class=\"stat-text\">\n\n            <span>\n              Sem. dernière\n            </span>\n\n            <strong>\n              ${semaineDerniere}\n              <small>kWh</small>\n            </strong>\n\n          </div>\n\n        </div>\n\n\n        <div class=\"stat\">\n\n          <div class=\"stat-icon green-icon\">\n            <ha-icon icon=\"mdi:calendar-month\"></ha-icon>\n          </div>\n\n          <div class=\"stat-text\">\n\n            <span>\n              Ce mois\n            </span>\n\n            <strong>\n              ${mois}\n              <small>kWh</small>\n            </strong>\n\n          </div>\n\n        </div>\n\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "200%"
+                  },
+                  {
+                    "justify-self": "start"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0,180,255,0.25)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "300px"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "300px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.energie-v7 {\n  width: 100%;\n  height: 300px;\n\n  box-sizing: border-box;\n\n  padding: 13px 18px 12px;\n\n  display: flex;\n  flex-direction: column;\n\n  color: white;\n  text-align: left;\n}\n\n\n/* HEADER */\n\n.header {\n  height: 42px;\n\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n\n  flex-shrink: 0;\n}\n\n.titre {\n  font-size: 18px;\n  font-weight: 800;\n  line-height: 1;\n}\n\n.status {\n  margin-top: 3px;\n\n  display: flex;\n  align-items: center;\n\n  gap: 5px;\n\n  color: #28e987;\n\n  font-size: 8px;\n  font-weight: 700;\n\n  line-height: 1;\n}\n\n.status-dot {\n  width: 6px;\n  height: 6px;\n\n  border-radius: 50%;\n\n  background: #28e987;\n\n  box-shadow:\n    0 0 7px #28e987;\n}\n\n.header-icon {\n  width: 40px;\n  height: 40px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 13px;\n\n  background:\n    rgba(41,198,255,0.09);\n\n  box-shadow:\n    0 0 16px rgba(41,198,255,0.18);\n}\n\n.header-icon ha-icon {\n  width: 24px;\n  height: 24px;\n\n  color: #29c6ff;\n}\n\n\n/* PRINCIPAL */\n\n.principal {\n  height: 76px;\n\n  display: grid;\n\n  grid-template-columns:\n    1fr 48px 1fr;\n\n  align-items: center;\n\n  gap: 6px;\n\n  flex-shrink: 0;\n}\n\n.label {\n  color:\n    rgba(195,207,217,0.76);\n\n  font-size: 8px;\n\n  margin-bottom: 3px;\n\n  line-height: 1;\n}\n\n.conso-value {\n  font-size: 35px;\n  font-weight: 800;\n\n  line-height: 0.95;\n\n  white-space: nowrap;\n}\n\n.conso-value span {\n  font-size: 14px;\n\n  color:\n    rgba(180,198,212,0.78);\n\n  font-weight: 600;\n}\n\n.wallet {\n  width: 42px;\n  height: 42px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  justify-self: center;\n\n  border-radius: 12px;\n\n  background:\n    rgba(40,233,135,0.08);\n\n  border:\n    1px solid rgba(40,233,135,0.28);\n}\n\n.wallet ha-icon {\n  width: 22px;\n  height: 22px;\n\n  color: #28e987;\n}\n\n.cout-value {\n  color: #28e987;\n\n  font-size: 30px;\n  line-height: 0.95;\n\n  font-weight: 800;\n\n  white-space: nowrap;\n}\n\n\n/* TEMPO */\n\n.tempo {\n  height: 48px;\n\n  flex: 0 0 48px;\n\n  margin-top: 2px;\n\n  padding: 0 8px;\n\n  display: grid;\n\n  grid-template-columns:\n    54px\n    minmax(43px, 1fr)\n    12px\n    minmax(43px, 1fr)\n    40px\n    62px;\n\n  align-items: center;\n\n  gap: 2px;\n\n  border-radius: 12px;\n\n  background:\n    rgba(255,255,255,0.028);\n\n  border:\n    1px solid rgba(255,255,255,0.09);\n\n  box-sizing: border-box;\n}\n\n.tempo-title {\n  color: #29c6ff;\n\n  font-size: 10px;\n  font-weight: 900;\n}\n\n.tempo-day {\n  display: flex;\n  align-items: center;\n\n  gap: 4px;\n\n  min-width: 0;\n}\n\n.tempo-day .dot {\n  width: 7px;\n  height: 7px;\n\n  flex: 0 0 7px;\n\n  border-radius: 50%;\n}\n\n.tempo-day div {\n  min-width: 0;\n\n  display: flex;\n  flex-direction: column;\n\n  line-height: 1;\n}\n\n.tempo-day small {\n  color:\n    rgba(170,185,200,0.66);\n\n  font-size: 5px;\n}\n\n.tempo-day strong {\n  margin-top: 2px;\n\n  color: white;\n\n  font-size: 8px;\n  font-weight: 800;\n\n  white-space: nowrap;\n}\n\n.arrow {\n  color: #29c6ff;\n\n  font-size: 12px;\n\n  text-align: center;\n}\n\n.tarif {\n  height: 29px;\n\n  padding-left: 5px;\n\n  border-left:\n    1px solid rgba(255,255,255,0.12);\n\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n}\n\n.tarif small {\n  color:\n    rgba(180,195,207,0.68);\n\n  font-size: 5px;\n}\n\n.tarif strong {\n  margin-top: 2px;\n\n  color: #29c6ff;\n\n  font-size: 10px;\n  font-weight: 900;\n}\n\n.days {\n  display: flex;\n\n  justify-content: flex-end;\n\n  gap: 2px;\n}\n\n.day {\n  width: 18px;\n  height: 29px;\n\n  border-radius: 6px;\n\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n\n  line-height: 1;\n}\n\n.day b {\n  font-size: 6px;\n}\n\n.day span {\n  margin-top: 2px;\n\n  font-size: 5px;\n  font-weight: 800;\n}\n\n.day.blue {\n  color: #29c6ff;\n\n  border:\n    1px solid rgba(41,198,255,0.48);\n\n  background:\n    rgba(41,198,255,0.06);\n}\n\n.day.white {\n  color: white;\n\n  border:\n    1px solid rgba(255,255,255,0.30);\n\n  background:\n    rgba(255,255,255,0.04);\n}\n\n.day.red {\n  color: #ff4d67;\n\n  border:\n    1px solid rgba(255,77,103,0.48);\n\n  background:\n    rgba(255,77,103,0.05);\n}\n\n\n/* STATS BAS */\n\n.stats {\n  flex: 1;\n\n  min-height: 0;\n\n  margin-top: 8px;\n\n  display: grid;\n\n  grid-template-columns:\n    repeat(3, minmax(0,1fr));\n\n  gap: 6px;\n}\n\n.stat {\n  min-width: 0;\n\n  display: flex;\n  align-items: center;\n\n  gap: 5px;\n\n  padding: 5px 6px;\n\n  box-sizing: border-box;\n\n  border-radius: 10px;\n\n  background:\n    rgba(255,255,255,0.022);\n\n  border:\n    1px solid rgba(255,255,255,0.075);\n\n  overflow: hidden;\n}\n\n.stat-icon {\n  width: 27px;\n  height: 27px;\n\n  flex: 0 0 27px;\n\n  border-radius: 8px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.stat-icon ha-icon {\n  width: 15px;\n  height: 15px;\n}\n\n.blue-icon {\n  background:\n    rgba(41,198,255,0.09);\n}\n\n.blue-icon ha-icon {\n  color: #29c6ff;\n}\n\n.purple-icon {\n  background:\n    rgba(164,108,255,0.09);\n}\n\n.purple-icon ha-icon {\n  color: #a46cff;\n}\n\n.green-icon {\n  background:\n    rgba(40,233,135,0.08);\n}\n\n.green-icon ha-icon {\n  color: #28e987;\n}\n\n.stat-text {\n  min-width: 0;\n\n  overflow: hidden;\n\n  display: flex;\n  flex-direction: column;\n}\n\n.stat-text > span {\n  color:\n    rgba(185,200,211,0.74);\n\n  font-size: 5.5px;\n\n  white-space: nowrap;\n}\n\n.stat-text strong {\n  margin-top: 3px;\n\n  color: white;\n\n  font-size: 10px;\n  font-weight: 800;\n\n  white-space: nowrap;\n}\n\n.stat-text small {\n  color: #29c6ff;\n\n  font-size: 5px;\n  font-weight: 600;\n}\n\n.purple-icon + .stat-text small {\n  color: #a46cff;\n}\n\n.green-icon + .stat-text small {\n  color: #28e987;\n}\n\n\n.erreur {\n  height: 100%;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  color: #ff7676;\n\n  font-size: 12px;\n  font-weight: 700;\n}\n"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "entity": "person.johnatan",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 5
+              },
+              "custom_fields": {
+                "contenu": "[[[\n  const p = states['person.johnatan'];\n  const tracker = states['device_tracker.telephone_john'];\n  const batterySensor = states['sensor.telephone_john_battery_level'];\n  const wifiSensor = states['sensor.telephone_john_wi_fi_connection'] || null;\n\n  const photo =\n    p?.attributes?.entity_picture || '';\n\n  const etat =\n    tracker?.state || 'unknown';\n\n  let presence = 'Statut inconnu';\n  let couleur = '#8a98a8';\n\n  if (etat === 'home') {\n    presence = 'À la maison';\n    couleur = '#29e985';\n  } else if (etat === 'not_home') {\n    presence = 'Absent';\n    couleur = '#ffb84d';\n  }\n\n  // Batterie\n  const battery = batterySensor && !['unknown', 'unavailable'].includes(batterySensor.state)\n    ? batterySensor.state + ' %'\n    : '-- %';\n\n  // Wi-Fi\n  const wifiName = wifiSensor && !['unknown', 'unavailable'].includes(wifiSensor.state)\n    ? wifiSensor.state\n    : 'N/A';\n\n  return `\n    <div class=\"family-card\">\n\n      <div\n        class=\"family-bg\"\n        style=\"\n          background-image:\n          linear-gradient(\n            to bottom,\n            rgba(0,0,0,0.03) 30%,\n            rgba(0,0,0,0.25) 58%,\n            rgba(0,0,0,0.92) 100%\n          ),\n          url('${photo}');\n        \"\n      ></div>\n\n      <div class=\"family-content\">\n\n        <div class=\"family-badge\">\n          <ha-icon icon=\"mdi:home\"></ha-icon>\n          Maison\n        </div>\n\n        <div class=\"family-bottom\">\n\n          <div class=\"family-name-row\">\n\n            <span\n              class=\"family-dot\"\n              style=\"\n                background:${couleur};\n                box-shadow:0 0 12px ${couleur};\n              \"\n            ></span>\n\n            <span class=\"family-name\">\n              Johnatan\n            </span>\n\n          </div>\n\n          <div\n            class=\"family-status\"\n            style=\"color:${couleur};\"\n          >\n            ${presence}\n          </div>\n\n          <div class=\"family-info\">\n\n            <div>\n              <ha-icon icon=\"mdi:battery\"></ha-icon>\n              <span>${battery}</span>\n            </div>\n\n            <div>\n              <ha-icon icon=\"mdi:wifi\"></ha-icon>\n              <span>${wifiName}</span>\n            </div>\n\n          </div>\n\n        </div>\n\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "130%"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "rgba(3, 17, 31, 0.98)"
+                  },
+                  {
+                    "border": "1px solid rgba(0, 180, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "300px"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "300px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.family-card {\n  position: relative;\n  width: 100%;\n  height: 300px;\n  overflow: hidden;\n}\n\n.family-bg {\n  position: absolute;\n  inset: 0;\n  background-size: cover;\n  background-position: center;\n  transform: scale(1.01);\n}\n\n.family-content {\n  position: relative;\n  z-index: 2;\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n  padding: 15px 16px 16px;\n  display: flex;\n  flex-direction: column;\n  justify-content: space-between;\n}\n\n.family-badge {\n  width: fit-content;\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  padding: 6px 10px;\n  border-radius: 20px;\n  background: rgba(34, 197, 94, 0.88);\n  color: white;\n  font-size: 9px;\n  font-weight: 700;\n}\n\n.family-badge ha-icon {\n  width: 14px;\n  height: 14px;\n}\n\n.family-bottom {\n  width: 100%;\n}\n\n.family-name-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.family-dot {\n  width: 10px;\n  height: 10px;\n  flex: 0 0 10px;\n  border-radius: 50%;\n}\n\n.family-name {\n  color: white;\n  font-size: 22px;\n  font-weight: 800;\n  text-shadow: 0 2px 8px rgba(0,0,0,0.55);\n}\n\n.family-status {\n  margin-top: 6px;\n  font-size: 10px;\n  font-weight: 700;\n}\n\n.family-info {\n  margin-top: 15px;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n\n.family-info > div {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  color: white;\n  font-size: 9px;\n}\n\n.family-info ha-icon {\n  width: 15px;\n  height: 15px;\n}\n\n@media (max-width: 1100px) {\n\n  .family-content {\n    padding: 13px 14px 14px;\n  }\n\n  .family-name {\n    font-size: 20px;\n  }\n\n  .family-info {\n    margin-top: 12px;\n    gap: 7px;\n  }\n\n}\n",
+              "triggers_update": [
+                "person.johnatan",
+                "device_tracker.telephone_john",
+                "sensor.telephone_john_battery_level"
+              ]
+            },
+            {
+              "type": "custom:button-card",
+              "entity": "person.chloe",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 6,
+                "rows": 5
+              },
+              "custom_fields": {
+                "contenu": "[[[\n  const p = states['person.chloe'];\n\n  const photo =\n    p?.attributes?.entity_picture || '';\n\n  const etat =\n    p?.state || 'unknown';\n\n  let presence = 'Statut à venir';\n  let couleur = '#8a98a8';\n\n  if (etat === 'home') {\n    presence = 'À la maison';\n    couleur = '#29e985';\n  }\n\n  if (etat === 'not_home') {\n    presence = 'Absent';\n    couleur = '#ffb84d';\n  }\n\n  return `\n    <div class=\"family-card\">\n\n      <div\n        class=\"family-bg\"\n        style=\"\n          background-image:\n          linear-gradient(\n            to bottom,\n            rgba(0,0,0,0.03) 30%,\n            rgba(0,0,0,0.25) 58%,\n            rgba(0,0,0,0.92) 100%\n          ),\n          url('${photo}');\n        \"\n      ></div>\n\n      <div class=\"family-content\">\n\n        <div class=\"family-badge\">\n          <ha-icon icon=\"mdi:home\"></ha-icon>\n          Maison\n        </div>\n\n        <div class=\"family-bottom\">\n\n          <div class=\"family-name-row\">\n            <span\n              class=\"family-dot\"\n              style=\"\n                background:${couleur};\n                box-shadow:0 0 12px ${couleur};\n              \"\n            ></span>\n\n            <span class=\"family-name\">\n              Chloé\n            </span>\n          </div>\n\n          <div\n            class=\"family-status\"\n            style=\"color:${couleur};\"\n          >\n            ${presence}\n          </div>\n\n          <div class=\"family-info\">\n\n            <div>\n              <ha-icon icon=\"mdi:battery\"></ha-icon>\n              <span>—</span>\n            </div>\n\n            <div>\n              <ha-icon icon=\"mdi:wifi\"></ha-icon>\n              <span>À raccorder</span>\n            </div>\n\n          </div>\n\n        </div>\n\n      </div>\n\n    </div>\n  `;\n]]]\n"
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "170%"
+                  },
+                  {
+                    "height": "300px"
+                  },
+                  {
+                    "min-height": "300px"
+                  },
+                  {
+                    "max-height": "300px"
+                  },
+                  {
+                    "padding": 0
+                  },
+                  {
+                    "margin": 0
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "24px"
+                  },
+                  {
+                    "background": "rgba(3, 17, 31, 0.98)"
+                  },
+                  {
+                    "border": "1px solid rgba(0, 180, 255, 0.22)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.28)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"contenu\""
+                  },
+                  {
+                    "grid-template-columns": "100%"
+                  },
+                  {
+                    "grid-template-rows": "300px"
+                  }
+                ],
+                "custom_fields": {
+                  "contenu": [
+                    {
+                      "width": "100%"
+                    },
+                    {
+                      "height": "300px"
+                    }
+                  ]
+                }
+              },
+              "extra_styles": "\n.family-card {\n  position: relative;\n  width: 100%;\n  height: 300px;\n  overflow: hidden;\n}\n\n.family-bg {\n  position: absolute;\n  inset: 0;\n  background-size: cover;\n  background-position: center;\n  transform: scale(1.01);\n}\n\n.family-content {\n  position: relative;\n  z-index: 2;\n  width: 100%;\n  height: 100%;\n  box-sizing: border-box;\n  padding: 15px 16px 16px;\n  display: flex;\n  flex-direction: column;\n  justify-content: space-between;\n}\n\n.family-badge {\n  width: fit-content;\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  padding: 6px 10px;\n  border-radius: 20px;\n  background: rgba(34, 197, 94, 0.88);\n  color: white;\n  font-size: 9px;\n  font-weight: 700;\n}\n\n.family-badge ha-icon {\n  width: 14px;\n  height: 14px;\n}\n\n.family-bottom {\n  width: 100%;\n}\n\n.family-name-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.family-dot {\n  width: 10px;\n  height: 10px;\n  flex: 0 0 10px;\n  border-radius: 50%;\n}\n\n.family-name {\n  color: white;\n  font-size: 22px;\n  font-weight: 800;\n  text-shadow: 0 2px 8px rgba(0,0,0,0.55);\n}\n\n.family-status {\n  margin-top: 6px;\n  font-size: 10px;\n  font-weight: 700;\n}\n\n.family-info {\n  margin-top: 15px;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n\n.family-info > div {\n  display: flex;\n  align-items: center;\n  gap: 7px;\n  color: white;\n  font-size: 9px;\n}\n\n.family-info ha-icon {\n  width: 15px;\n  height: 15px;\n}\n\n@media (max-width: 1100px) {\n\n  .family-content {\n    padding: 13px 14px 14px;\n  }\n\n  .family-name {\n    font-size: 20px;\n  }\n\n  .family-info {\n    margin-top: 12px;\n    gap: 7px;\n  }\n\n}\n"
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "vertical-stack",
+              "cards": [
+                {
+                  "type": "custom:mushroom-template-card",
+                  "entity": "vacuum.d10_plus",
+                  "primary": "Cassandra",
+                  "secondary": "{% if is_state('vacuum.d10_plus','cleaning') %}En nettoyage · {{ states('sensor.d10_plus_current_room') }}{% elif is_state('vacuum.d10_plus','returning') %}Retour à la base{% elif is_state('vacuum.d10_plus','docked') and is_state('binary_sensor.d10_plus_charging_state','on') %}En charge{% elif is_state('vacuum.d10_plus','docked') %}Sur sa base · prête{% elif is_state('vacuum.d10_plus','paused') %}En pause{% else %}{{ states('vacuum.d10_plus') | capitalize }}{% endif %} · {{ state_attr('vacuum.d10_plus','battery_level') }} % 🔋",
+                  "icon": "{% if is_state('vacuum.d10_plus','cleaning') %} mdi:robot-vacuum {% elif is_state('vacuum.d10_plus','returning') %} mdi:home-map-marker {% elif is_state('vacuum.d10_plus','docked') %} mdi:robot-vacuum-variant {% else %} mdi:robot-vacuum-alert {% endif %}",
+                  "icon_color": "{% if is_state('vacuum.d10_plus','cleaning') %} green {% elif is_state('vacuum.d10_plus','returning') %} blue {% elif is_state('vacuum.d10_plus','docked') %} #39c6ff {% else %} orange {% endif %}",
+                  "tap_action": {
+                    "action": "navigate",
+                    "navigation_path": "securite"
+                  },
+                  "card_mod": {
+                    "style": "ha-card {\n  background: linear-gradient(160deg, #10203c 0%, #0a1428 100%);\n  border-radius: 24px;\n  border: 1px solid rgba(0,180,255,0.22);\n  box-shadow: 0 12px 35px rgba(0,0,0,0.28);\n  padding: 18px 16px;\n  --mush-title-font-size: 22px;\n  --mush-primary-font-size: 21px;\n  --mush-secondary-font-size: 13px;\n}\n"
+                  }
+                },
+                {
+                  "type": "horizontal-stack",
+                  "cards": [
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "sensor.d10_plus_cleaned_area",
+                      "primary": "{{ states('sensor.d10_plus_cleaned_area') }} m²",
+                      "secondary": "Dernière surface",
+                      "icon": "mdi:texture-box",
+                      "icon_color": "cyan",
+                      "card_mod": {
+                        "style": "ha-card { background: none; border: none; box-shadow: none; --ha-card-border-width: 0; }\n"
+                      }
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "sensor.d10_plus_water_tank",
+                      "primary": "{{ 'Installé' if is_state('sensor.d10_plus_water_tank','installed') else 'Absent' }}",
+                      "secondary": "Réservoir d'eau",
+                      "icon": "mdi:water",
+                      "icon_color": "{{ 'blue' if is_state('sensor.d10_plus_water_tank','installed') else 'red' }}",
+                      "card_mod": {
+                        "style": "ha-card { background: none; border: none; box-shadow: none; --ha-card-border-width: 0; }\n"
+                      }
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "select.d10_plus_suction_level",
+                      "primary": "{{ {'silent':'Silencieux','standard':'Standard','strong':'Fort','max':'Max','turbo':'Turbo'}[states('select.d10_plus_suction_level')] | default(states('select.d10_plus_suction_level') | capitalize) }}",
+                      "secondary": "Aspiration (toucher pour régler)",
+                      "icon": "mdi:fan",
+                      "icon_color": "teal",
+                      "tap_action": {
+                        "action": "more-info"
+                      },
+                      "card_mod": {
+                        "style": "ha-card { background: none; border: none; box-shadow: none; --ha-card-border-width: 0; }\n"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "horizontal-stack",
+                  "cards": [
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "vacuum.d10_plus",
+                      "primary": "DÉMARRER",
+                      "icon": "mdi:play",
+                      "icon_color": "{{ 'grey' if is_state('vacuum.d10_plus','cleaning') else 'green' }}",
+                      "tap_action": {
+                        "action": "call-service",
+                        "service": "vacuum.start",
+                        "target": {
+                          "entity_id": "vacuum.d10_plus"
+                        }
+                      },
+                      "card_mod": {
+                        "style": "ha-card {\n  background: {% if is_state('vacuum.d10_plus','cleaning') %} rgba(255,255,255,0.05) {% else %} rgba(76,175,80,0.18) {% endif %};\n  border: 1px solid rgba(255,255,255,0.1);\n  border-radius: 16px;\n  padding: 12px 8px;\n}\n"
+                      }
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "vacuum.d10_plus",
+                      "primary": "PAUSE",
+                      "icon": "mdi:pause",
+                      "icon_color": "orange",
+                      "tap_action": {
+                        "action": "call-service",
+                        "service": "vacuum.pause",
+                        "target": {
+                          "entity_id": "vacuum.d10_plus"
+                        }
+                      },
+                      "card_mod": {
+                        "style": "ha-card {\n  background: rgba(255,255,255,0.05);\n  border: 1px solid rgba(255,255,255,0.1);\n  border-radius: 16px;\n  padding: 12px 8px;\n}\n"
+                      }
+                    },
+                    {
+                      "type": "custom:mushroom-template-card",
+                      "entity": "vacuum.d10_plus",
+                      "primary": "BASE",
+                      "icon": "mdi:home-map-marker",
+                      "icon_color": "#39c6ff",
+                      "tap_action": {
+                        "action": "call-service",
+                        "service": "vacuum.return_to_base",
+                        "target": {
+                          "entity_id": "vacuum.d10_plus"
+                        }
+                      },
+                      "card_mod": {
+                        "style": "ha-card {\n  background: rgba(57,198,255,0.12);\n  border: 1px solid rgba(255,255,255,0.1);\n  border-radius: 16px;\n  padding: 12px 8px;\n}\n"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "cards": [
+            {
+              "type": "custom:button-card",
+              "show_name": false,
+              "show_icon": false,
+              "show_state": false,
+              "grid_options": {
+                "columns": 12,
+                "rows": 1.5
+              },
+              "custom_fields": {
+                "accueil": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:home",
+                    "name": "Accueil",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/accueil"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "linear-gradient(145deg, rgba(10,43,74,0.75), rgba(5,21,39,0.80))"
+                        },
+                        {
+                          "border": "1px solid rgba(38,169,255,0.42)"
+                        },
+                        {
+                          "box-shadow": "inset 0 0 18px rgba(0,153,255,0.08), 0 0 18px rgba(0,153,255,0.12)"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "white"
+                        },
+                        {
+                          "filter": "drop-shadow(0 0 5px"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "white"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "energie": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:lightning-bolt",
+                    "name": "Énergie",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/energie"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "clim": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:thermometer",
+                    "name": "Climatisation",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/climatisation"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "lumieres": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:lightbulb-outline",
+                    "name": "Lumières",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/lumieres"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "volets": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:window-shutter",
+                    "name": "Volets",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/volets"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "cameras": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:cctv",
+                    "name": "Caméras",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/cameras"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "securite": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:shield-home-outline",
+                    "name": "Sécurité",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/securite"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "piscine": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:pool",
+                    "name": "Piscine & Spa",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/maison-blaise-v7/piscine-spa"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                },
+                "parametres": {
+                  "card": {
+                    "type": "custom:button-card",
+                    "icon": "mdi:cog-outline",
+                    "name": "Paramètres",
+                    "show_icon": true,
+                    "show_name": true,
+                    "tap_action": {
+                      "action": "navigate",
+                      "navigation_path": "/config/dashboard"
+                    },
+                    "styles": {
+                      "card": [
+                        {
+                          "height": "82px"
+                        },
+                        {
+                          "border-radius": "15px"
+                        },
+                        {
+                          "background": "transparent"
+                        },
+                        {
+                          "border": "1px solid transparent"
+                        },
+                        {
+                          "box-shadow": "none"
+                        },
+                        {
+                          "padding": 0
+                        }
+                      ],
+                      "grid": [
+                        {
+                          "grid-template-areas": "\"i\" \"n\""
+                        },
+                        {
+                          "grid-template-rows": "46px 24px"
+                        }
+                      ],
+                      "icon": [
+                        {
+                          "width": "30px"
+                        },
+                        {
+                          "color": "rgba(168,180,211,0.82)"
+                        }
+                      ],
+                      "name": [
+                        {
+                          "color": "rgba(190,199,220,0.78)"
+                        },
+                        {
+                          "font-size": "11px"
+                        },
+                        {
+                          "font-weight": 500
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "styles": {
+                "card": [
+                  {
+                    "width": "300%"
+                  },
+                  {
+                    "height": "110px"
+                  },
+                  {
+                    "padding": "8px 14px"
+                  },
+                  {
+                    "box-sizing": "border-box"
+                  },
+                  {
+                    "overflow": "hidden"
+                  },
+                  {
+                    "border-radius": "22px"
+                  },
+                  {
+                    "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+                  },
+                  {
+                    "border": "1px solid rgba(0,180,255,0.20)"
+                  },
+                  {
+                    "box-shadow": "0 12px 35px rgba(0,0,0,0.25)"
+                  }
+                ],
+                "grid": [
+                  {
+                    "grid-template-areas": "\"accueil energie clim lumieres volets cameras securite piscine parametres\""
+                  },
+                  {
+                    "grid-template-columns": "repeat(9, 1fr)"
+                  },
+                  {
+                    "grid-template-rows": "100%"
+                  },
+                  {
+                    "column-gap": "6px"
+                  }
+                ],
+                "custom_fields": {
+                  "accueil": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "energie": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "clim": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "lumieres": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "volets": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "cameras": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "securite": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "piscine": [
+                    {
+                      "width": "100%"
+                    }
+                  ],
+                  "parametres": [
+                    {
+                      "width": "100%"
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "column_span": 6
+        }
+      ],
+      "header": {
+        "layout": "responsive",
+        "badges_position": "bottom",
+        "badges_wrap": "wrap"
+      },
+      "cards": [],
+      "theme": "Aurora"
+    },
+    {
+      "title": "Accueil",
+      "path": "default_view",
+      "icon": "mdi:home",
+      "cards": [
+        {
+          "type": "weather-forecast",
+          "entity": "weather.forecast_maison"
+        }
+      ],
+      "views": null
+    },
+    {
+      "cards": [
+        {
+          "cards": [
+            {
+              "type": "custom:mushroom-template-card",
+              "entity": "climate.climatisation_salon_mqtt_hvac",
+              "primary": "Climatisation Salon",
+              "secondary": "{% set mode = states('climate.climatisation_salon_mqtt_hvac') %} {% set modes_fr = {'cool': 'Froid', 'heat': 'Chaud', 'heat_cool': 'Auto', 'fan_only': 'Ventilation', 'dry': 'Déshumidification', 'off': 'Arrêt'} %} {{ modes_fr.get(mode, mode | capitalize) }} • Int. {{ states('sensor.climatisation_salon_ac_home') }} °C • Ext. {{ states('sensor.climatisation_salon_outside') }} °C",
+              "icon": "mdi:thermostat",
+              "icon_color": "{{ {'cool':'blue','heat':'red','heat_cool':'purple', 'auto':'purple','fan_only':'amber','dry':'teal'}.get( states('climate.climatisation_salon_mqtt_hvac'),'grey') }}",
+              "fill_container": false,
+              "multiline_secondary": false,
+              "tap_action": {
+                "action": "more-info"
+              },
+              "card_mod": {
+                "style": {
+                  ".": "ha-card {\n  background: linear-gradient(135deg,\n    rgba(78,154,241,0.18) 0%,\n    rgba(255,110,64,0.18) 100%);\n  backdrop-filter: blur(12px);\n  border: 1px solid rgba(255,255,255,0.10);\n  border-radius: 22px;\n  box-shadow: 0 8px 32px rgba(0,0,0,0.25);\n  transition: all 0.4s ease;\n}\nha-card:hover {\n  box-shadow: 0 12px 40px rgba(78,154,241,0.35);\n  transform: translateY(-2px);\n}\n",
+                  "$": ".shape {\n  --shape-color: rgba(255,255,255,0.15);\n  animation: pulse 3s infinite ease-in-out;\n}\n@keyframes pulse {\n  0%, 100% { opacity: 1; }\n  50% { opacity: 0.7; }\n}\n"
+                }
+              }
+            },
+            {
+              "card_mod": {
+                "style": "ha-card {\n  background: linear-gradient(160deg,\n    rgba(30,40,55,0.65) 0%,\n    rgba(45,55,72,0.45) 100%);\n  backdrop-filter: blur(16px);\n  border: 1px solid rgba(255,255,255,0.08);\n  border-radius: 22px;\n  box-shadow: 0 8px 32px rgba(0,0,0,0.3);\n  transition: all 0.4s cubic-bezier(0.4,0,0.2,1);\n  --rgb-state-climate-cool: 78,154,241;\n  --rgb-state-climate-heat: 255,110,64;\n  --rgb-state-climate-fan-only: 255,193,7;\n  --rgb-state-climate-dry: 0,150,136;\n  --rgb-state-climate-heat-cool: 156,39,176;\n}\nha-card:hover {\n  box-shadow: 0 14px 44px rgba(78,154,241,0.28);\n  transform: translateY(-3px);\n}\n.controls .control-button {\n  transition: all 0.3s ease;\n  border-radius: 14px;\n}\n.controls .control-button.active {\n  background: rgba(78,154,241,0.25);\n  box-shadow: 0 0 16px rgba(78,154,241,0.5);\n  transform: scale(1.05);\n}\n"
+              },
+              "collapsible_controls": true,
+              "entity": "climate.climatisation_salon_mqtt_hvac",
+              "fill_container": true,
+              "hvac_modes": [
+                "cool",
+                "heat",
+                "heat_cool",
+                "dry",
+                "fan_only",
+                "off"
+              ],
+              "icon_type": "icon",
+              "show_temperature_control": true,
+              "type": "custom:mushroom-climate-card"
+            },
+            {
+              "alignment": "center",
+              "chips": [
+                {
+                  "card_mod": {
+                    "style": "ha-card { width: 70px; border-radius: 16px; transition: all 0.3s; }\nha-card:hover { transform: scale(1.1); box-shadow: 0 0 18px rgba(78,154,241,0.6); }\n"
+                  },
+                  "icon": "mdi:snowflake",
+                  "icon_color": "blue",
+                  "name": "Froid",
+                  "tap_action": {
+                    "action": "call-service",
+                    "data": {
+                      "hvac_mode": "cool"
+                    },
+                    "service": "climate.set_hvac_mode",
+                    "service_data": {
+                      "hvac_mode": "cool"
+                    },
+                    "target": {
+                      "entity_id": "climate.climatisation_salon_mqtt_hvac"
+                    }
+                  },
+                  "type": "action"
+                },
+                {
+                  "card_mod": {
+                    "style": "ha-card { width: 70px; border-radius: 16px; transition: all 0.3s; }\nha-card:hover { transform: scale(1.1); box-shadow: 0 0 18px rgba(255,110,64,0.6); }\n"
+                  },
+                  "icon": "mdi:fire",
+                  "icon_color": "red",
+                  "name": "Chaud",
+                  "tap_action": {
+                    "action": "call-service",
+                    "data": {
+                      "hvac_mode": "heat"
+                    },
+                    "service": "climate.set_hvac_mode",
+                    "service_data": {
+                      "hvac_mode": "heat"
+                    },
+                    "target": {
+                      "entity_id": "climate.climatisation_salon_mqtt_hvac"
+                    }
+                  },
+                  "type": "action"
+                },
+                {
+                  "card_mod": {
+                    "style": "ha-card { width: 70px; border-radius: 16px; transition: all 0.3s; }\nha-card:hover { transform: scale(1.1); box-shadow: 0 0 18px rgba(156,39,176,0.6); }\n"
+                  },
+                  "icon": "mdi:autorenew",
+                  "icon_color": "purple",
+                  "name": "Auto",
+                  "tap_action": {
+                    "action": "call-service",
+                    "data": {
+                      "hvac_mode": "heat_cool"
+                    },
+                    "service": "climate.set_hvac_mode",
+                    "service_data": {
+                      "hvac_mode": "heat_cool"
+                    },
+                    "target": {
+                      "entity_id": "climate.climatisation_salon_mqtt_hvac"
+                    }
+                  },
+                  "type": "action"
+                },
+                {
+                  "card_mod": {
+                    "style": "ha-card { width: 70px; border-radius: 16px; transition: all 0.3s; }\nha-card:hover { transform: scale(1.1); box-shadow: 0 0 18px rgba(255,193,7,0.6); }\n"
+                  },
+                  "icon": "mdi:fan",
+                  "icon_color": "amber",
+                  "name": "Ventil.",
+                  "tap_action": {
+                    "action": "call-service",
+                    "data": {
+                      "hvac_mode": "fan_only"
+                    },
+                    "service": "climate.set_hvac_mode",
+                    "service_data": {
+                      "hvac_mode": "fan_only"
+                    },
+                    "target": {
+                      "entity_id": "climate.climatisation_salon_mqtt_hvac"
+                    }
+                  },
+                  "type": "action"
+                },
+                {
+                  "card_mod": {
+                    "style": "ha-card { width: 70px; border-radius: 16px; transition: all 0.3s; }\nha-card:hover { transform: scale(1.1); box-shadow: 0 0 18px rgba(158,158,158,0.6); }\n"
+                  },
+                  "icon": "mdi:power",
+                  "icon_color": "grey",
+                  "name": "Arrêt",
+                  "tap_action": {
+                    "action": "call-service",
+                    "data": {
+                      "hvac_mode": "off"
+                    },
+                    "service": "climate.set_hvac_mode",
+                    "service_data": {
+                      "hvac_mode": "off"
+                    },
+                    "target": {
+                      "entity_id": "climate.climatisation_salon_mqtt_hvac"
+                    }
+                  },
+                  "type": "action"
+                }
+              ],
+              "type": "custom:mushroom-chips-card"
+            },
+            {
+              "alignment": "center",
+              "chips": [
+                {
+                  "content": "Int. {{ states('sensor.climatisation_salon_ac_home') }} °C",
+                  "icon": "mdi:thermometer",
+                  "icon_color": "red",
+                  "type": "template"
+                },
+                {
+                  "content": "Ext. {{ states('sensor.climatisation_salon_outside') }} °C",
+                  "icon": "mdi:weather-sunny",
+                  "icon_color": "orange",
+                  "type": "template"
+                },
+                {
+                  "content": "{{ states('sensor.climatisation_salon_humidity') }} %",
+                  "icon": "mdi:water-percent",
+                  "icon_color": "blue",
+                  "type": "template"
+                },
+                {
+                  "content": "Vent. {{ states('sensor.climatisation_salon_fanfreq') }} Hz",
+                  "icon": "mdi:fan-speed-2",
+                  "icon_color": "teal",
+                  "type": "template"
+                },
+                {
+                  "content": "Cible {{ states('sensor.climatisation_salon_ac_target') }} °C",
+                  "icon": "mdi:target",
+                  "icon_color": "green",
+                  "type": "template"
+                }
+              ],
+              "type": "custom:mushroom-chips-card"
+            },
+            {
+              "cards": [
+                {
+                  "card_mod": {
+                    "style": "ha-card {\n  background: rgba(30,40,55,0.5);\n  backdrop-filter: blur(10px);\n  border: 1px solid rgba(255,255,255,0.06);\n  border-radius: 18px;\n  box-shadow: 0 6px 24px rgba(0,0,0,0.25);\n  transition: all 0.4s ease;\n}\nha-card:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0,0,0,0.35); }\n"
+                  },
+                  "entities": [
+                    {
+                      "entity": "sensor.climatisation_salon_ac_home",
+                      "name": "Intérieure"
+                    },
+                    {
+                      "entity": "sensor.climatisation_salon_ac_target",
+                      "name": "Cible"
+                    },
+                    {
+                      "entity": "sensor.climatisation_salon_outside",
+                      "name": "Extérieure"
+                    }
+                  ],
+                  "hours_to_show": 24,
+                  "title": "Températures (24h)",
+                  "type": "history-graph"
+                },
+                {
+                  "card_mod": {
+                    "style": "ha-card {\n  background: rgba(30,40,55,0.5);\n  backdrop-filter: blur(10px);\n  border: 1px solid rgba(255,255,255,0.06);\n  border-radius: 18px;\n  box-shadow: 0 6px 24px rgba(0,0,0,0.25);\n  transition: all 0.4s ease;\n}\nha-card:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0,0,0,0.35); }\n"
+                  },
+                  "entities": [
+                    {
+                      "entity": "sensor.climatisation_salon_humidity",
+                      "name": "Humidité"
+                    },
+                    {
+                      "entity": "sensor.climatisation_salon_fanfreq",
+                      "name": "Ventilateur Hz"
+                    }
+                  ],
+                  "hours_to_show": 24,
+                  "title": "Humidité & Ventilateur (24h)",
+                  "type": "history-graph"
+                }
+              ],
+              "type": "horizontal-stack"
+            }
+          ],
+          "type": "vertical-stack"
+        }
+      ],
+      "icon": "mdi:snowflake",
+      "path": "climatisation",
+      "theme": "Aurora",
+      "title": "Climatisation"
+    },
+    {
+      "title": "Lumières",
+      "path": "lumieres",
+      "icon": "mdi:lightbulb-group",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "entities",
+          "entities": [
+            "light.terrasse",
+            "light.spa",
+            "light.pool_house_3",
+            "light.spot_palmier"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Volets",
+      "path": "volets",
+      "icon": "mdi:window-shutter",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "entities",
+          "entities": [
+            {
+              "entity": "cover.volet_chambre_parents"
+            },
+            {
+              "entity": "cover.rfy_010003_1",
+              "name": "volet salon 01"
+            },
+            {
+              "entity": "cover.rfy_010004_1",
+              "name": "volet terrasse"
+            },
+            {
+              "entity": "cover.rfy_010005_1",
+              "name": "volet bureau"
+            },
+            {
+              "entity": "cover.rfy_010006_1",
+              "name": "volet hannah"
+            },
+            {
+              "entity": "cover.rfy_010007_1",
+              "name": "volet sacha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Caméras",
+      "path": "cameras",
+      "icon": "mdi:cctv",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "picture-entity",
+          "entity": "camera.pool_house_camera_pool_house_profile_000",
+          "camera_image": "camera.pool_house_camera_pool_house_profile_000",
+          "camera_view": "live",
+          "name": "Pool House",
+          "show_name": true,
+          "show_state": false,
+          "tap_action": {
+            "action": "more-info"
+          },
+          "hold_action": {
+            "action": "more-info"
+          }
+        },
+        {
+          "type": "custom:button-card",
+          "show_name": false,
+          "show_icon": false,
+          "show_state": false,
+          "grid_options": {
+            "columns": 6,
+            "rows": 4
+          },
+          "variables": {
+            "doorbell": "event.d340w_button_press",
+            "lock": "lock.wifi_access_oled"
+          },
+          "triggers_update": [
+            "[[[ return variables.doorbell ]]]",
+            "[[[ return variables.lock ]]]"
+          ],
+          "custom_fields": {
+            "titre": "[[[\n  const lockState = hass.states[variables.lock]?.state;\n  const ev = hass.states[variables.doorbell];\n\n  const derniere = ev && ev.state !== 'unavailable'\n    ? new Date(ev.last_changed).getTime()\n    : 0;\n\n  const sonne = (Date.now() - derniere) < 30000;\n  const ouverte = lockState === 'unlocked';\n\n  let statut = 'Entrée en direct';\n  let couleur = '#28e987';\n  let icone = 'mdi:doorbell';\n\n  if (sonne) {\n    statut = 'QUELQU’UN SONNE !';\n    couleur = '#ffb020';\n    icone = 'mdi:bell-ring';\n  } else if (ouverte) {\n    statut = 'PORTILLON OUVERT';\n    couleur = '#28e987';\n    icone = 'mdi:door-open';\n  }\n\n  return `\n    <div class=\"camera-header ${sonne ? 'header-sonne' : ''}\">\n\n      <div>\n        <div class=\"camera-titre\">\n          Visiophone\n        </div>\n\n        <div\n          class=\"camera-statut\"\n          style=\"color:${couleur}\"\n        >\n          <span\n            class=\"camera-point\"\n            style=\"\n              background:${couleur};\n              box-shadow:0 0 8px ${couleur};\n            \"\n          ></span>\n\n          ${statut}\n        </div>\n      </div>\n\n      <div\n        class=\"camera-icon\"\n        style=\"\n          background:rgba(41,198,255,0.11);\n        \"\n      >\n        <ha-icon\n          icon=\"${icone}\"\n          style=\"color:${couleur}\"\n        ></ha-icon>\n      </div>\n\n    </div>\n  `;\n]]]\n",
+            "video": {
+              "card": {
+                "type": "picture-entity",
+                "entity": "camera.d340w_fluide",
+                "camera_image": "camera.d340w_fluide",
+                "camera_view": "live",
+                "show_name": false,
+                "show_state": false,
+                "tap_action": {
+                  "action": "more-info"
+                },
+                "hold_action": {
+                  "action": "more-info"
+                },
+                "card_mod": {
+                  "style": "ha-card {\n  height: 100% !important;\n  width: 100% !important;\n  border-radius: 12px !important;\n  overflow: hidden !important;\n  border: 1px solid rgba(41,198,255,0.16) !important;\n  box-shadow: 0 0 18px rgba(41,198,255,0.06) !important;\n  background: #06131f !important;\n}\nha-card > * {\n  height: 100% !important;\n  width: 100% !important;\n}\nhui-image {\n  height: 100% !important;\n  --control-height: 0px !important;\n}\nhui-image img,\nhui-image video,\nha-camera-stream {\n  width: 100% !important;\n  height: 100% !important;\n  object-fit: cover !important;\n  border-radius: 12px !important;\n  display: block !important;\n}\n"
+                }
+              }
+            },
+            "sonnerie": "[[[\n  const ev = hass.states[variables.doorbell];\n\n  const derniere = ev && ev.state !== 'unavailable'\n    ? new Date(ev.last_changed).getTime()\n    : 0;\n\n  const active = (Date.now() - derniere) < 30000;\n\n  if (active) {\n    return `\n      <div class=\"ring-badge ring-active\">\n\n        <ha-icon icon=\"mdi:bell-ring\"></ha-icon>\n\n        <span>\n          QUELQU'UN SONNE !\n        </span>\n\n      </div>\n    `;\n  }\n\n  return `\n    <div class=\"ring-badge\">\n\n      <ha-icon icon=\"mdi:shield-check-outline\"></ha-icon>\n\n      <span>\n        Surveillance active\n      </span>\n\n    </div>\n  `;\n]]]\n",
+            "boutons": {
+              "card": {
+                "type": "custom:button-card",
+                "show_name": false,
+                "show_icon": false,
+                "show_state": false,
+                "custom_fields": {
+                  "ouvrir": "[[[\n  const verrou = hass.states[variables.lock]?.state;\n\n  if (verrou === 'unlocked') {\n    return `\n      <div class=\"btn-ouvrir ouvert\">\n\n        <ha-icon icon=\"mdi:door-open\"></ha-icon>\n\n        <span>\n          PORTILLON OUVERT\n        </span>\n\n      </div>\n    `;\n  }\n\n  return `\n    <div class=\"btn-ouvrir\">\n\n      <ha-icon icon=\"mdi:lock-open-variant\"></ha-icon>\n\n      <span>\n        OUVRIR LE PORTILLON\n      </span>\n\n    </div>\n  `;\n]]]\n",
+                  "plein_ecran": "[[[\n  return `\n    <div class=\"btn-info\">\n\n      <ha-icon icon=\"mdi:fullscreen\"></ha-icon>\n\n      <span>\n        PLEIN ÉCRAN\n      </span>\n\n    </div>\n  `;\n]]]\n"
+                },
+                "styles": {
+                  "card": [
+                    {
+                      "height": "58px"
+                    },
+                    {
+                      "padding": 0
+                    },
+                    {
+                      "overflow": "hidden"
+                    },
+                    {
+                      "border-radius": "12px"
+                    },
+                    {
+                      "background": "none"
+                    },
+                    {
+                      "border": "none"
+                    },
+                    {
+                      "box-shadow": "none"
+                    }
+                  ],
+                  "grid": [
+                    {
+                      "grid-template-areas": "\"ouvrir plein_ecran\""
+                    },
+                    {
+                      "grid-template-columns": "68% 32%"
+                    },
+                    {
+                      "grid-template-rows": "100%"
+                    }
+                  ],
+                  "custom_fields": {
+                    "ouvrir": [
+                      {
+                        "width": "100%"
+                      },
+                      {
+                        "height": "100%"
+                      }
+                    ],
+                    "plein_ecran": [
+                      {
+                        "width": "100%"
+                      },
+                      {
+                        "height": "100%"
+                      }
+                    ]
+                  }
+                },
+                "extra_styles": "\n.btn-ouvrir,\n.btn-info {\n\n  width: 100%;\n  height: 100%;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: center;\n\n  gap: 7px;\n\n  border-radius: 12px;\n\n  font-size: 10px;\n  font-weight: 800;\n\n  letter-spacing: 0.4px;\n\n  box-sizing: border-box;\n\n  transition:\n    transform 0.15s ease,\n    background 0.2s ease,\n    border 0.2s ease;\n}\n\n\n/* =========================\n   OUVERTURE\n   ========================= */\n\n.btn-ouvrir {\n\n  background:\n    linear-gradient(\n      145deg,\n      rgba(41,198,255,0.18),\n      rgba(41,198,255,0.06)\n    );\n\n  border:\n    1px solid rgba(41,198,255,0.40);\n\n  color: #29c6ff;\n\n  box-shadow:\n    0 0 12px rgba(41,198,255,0.06);\n}\n\n\n.btn-ouvrir.ouvert {\n\n  background:\n    linear-gradient(\n      145deg,\n      rgba(40,233,135,0.18),\n      rgba(40,233,135,0.06)\n    );\n\n  border:\n    1px solid rgba(40,233,135,0.42);\n\n  color: #28e987;\n\n  box-shadow:\n    0 0 14px rgba(40,233,135,0.10);\n}\n\n\n.btn-ouvrir:active,\n.btn-info:active {\n\n  transform: scale(0.97);\n}\n\n\n.btn-ouvrir ha-icon {\n\n  width: 17px;\n  height: 17px;\n}\n\n\n/* =========================\n   PLEIN ÉCRAN\n   ========================= */\n\n.btn-info {\n\n  background:\n    rgba(255,255,255,0.05);\n\n  border:\n    1px solid rgba(255,255,255,0.09);\n\n  color:\n    rgba(210,225,235,0.78);\n}\n\n\n.btn-info ha-icon {\n\n  width: 16px;\n  height: 16px;\n}\n"
+              }
+            },
+            "triggers_update": "all"
+          },
+          "styles": {
+            "card": [
+              {
+                "width": "100%"
+              },
+              {
+                "justify-self": "start"
+              },
+              {
+                "height": "300px"
+              },
+              {
+                "min-height": "300px"
+              },
+              {
+                "max-height": "300px"
+              },
+              {
+                "padding": 0
+              },
+              {
+                "margin": 0
+              },
+              {
+                "overflow": "hidden"
+              },
+              {
+                "border-radius": "24px"
+              },
+              {
+                "background": "linear-gradient(145deg, rgba(3,17,31,0.98), rgba(3,11,22,0.98))"
+              },
+              {
+                "border": "1px solid rgba(0,180,255,0.22)"
+              },
+              {
+                "box-shadow": "0 12px 35px rgba(0,0,0,0.28)"
+              }
+            ],
+            "grid": [
+              {
+                "grid-template-areas": "\"titre\"\n\"video\"\n\"sonnerie\"\n\"boutons\"\n"
+              },
+              {
+                "grid-template-columns": "100%"
+              },
+              {
+                "grid-template-rows": "62px 120px 30px 58px"
+              },
+              {
+                "row-gap": "8px"
+              }
+            ],
+            "custom_fields": {
+              "titre": [
+                {
+                  "width": "100%"
+                },
+                {
+                  "height": "100%"
+                },
+                {
+                  "padding": "18px 20px 0"
+                },
+                {
+                  "box-sizing": "border-box"
+                }
+              ],
+              "video": [
+                {
+                  "width": "calc(100% - 40px)"
+                },
+                {
+                  "margin-left": "20px"
+                }
+              ],
+              "sonnerie": [
+                {
+                  "width": "calc(100% - 40px)"
+                },
+                {
+                  "margin-left": "20px"
+                },
+                {
+                  "padding": "4px 10px"
+                },
+                {
+                  "box-sizing": "border-box"
+                }
+              ],
+              "boutons": [
+                {
+                  "width": "calc(100% - 40px)"
+                },
+                {
+                  "margin-left": "20px"
+                }
+              ]
+            }
+          },
+          "extra_styles": "\n/* =========================\n   HEADER\n   ========================= */\n\n.camera-header {\n\n  display: flex;\n\n  align-items: flex-start;\n\n  justify-content: space-between;\n\n  padding-bottom: 10px;\n\n  border-bottom:\n    1px solid rgba(255,255,255,0.07);\n}\n\n\n.camera-titre {\n\n  color: white;\n\n  font-size: 17px;\n\n  font-weight: 700;\n}\n\n\n.camera-statut {\n\n  margin-top: 6px;\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 6px;\n\n  font-size: 10px;\n\n  font-weight: 700;\n}\n\n\n.camera-point {\n\n  width: 6px;\n  height: 6px;\n\n  flex: 0 0 6px;\n\n  border-radius: 50%;\n}\n\n\n.camera-icon {\n\n  width: 38px;\n  height: 38px;\n\n  flex: 0 0 38px;\n\n  display: flex;\n\n  align-items: center;\n  justify-content: center;\n\n  border-radius: 13px;\n\n  box-shadow:\n    0 0 14px rgba(41,198,255,0.22);\n}\n\n\n.camera-icon ha-icon {\n\n  width: 22px;\n  height: 22px;\n}\n\n\n/* =========================\n   SONNERIE\n   ========================= */\n\n.ring-badge {\n\n  height: 100%;\n\n  display: flex;\n\n  align-items: center;\n\n  gap: 6px;\n\n  font-size: 9px;\n\n  font-weight: 700;\n\n  letter-spacing: 0.6px;\n\n  color:\n    rgba(140,160,175,0.8);\n}\n\n\n.ring-badge ha-icon {\n\n  width: 13px;\n  height: 13px;\n}\n\n\n.ring-badge.ring-active {\n\n  color: #ffb020;\n\n  animation:\n    ring-pulse 1s ease-in-out infinite;\n}\n\n\n.ring-badge.ring-active ha-icon {\n\n  color: #ffb020;\n\n  filter:\n    drop-shadow(0 0 5px rgba(255,176,32,0.9));\n}\n\n\n@keyframes ring-pulse {\n\n  0%,\n  100% {\n    opacity: 1;\n  }\n\n  50% {\n    opacity: 0.35;\n  }\n\n}\n"
+        }
+      ]
+    },
+    {
+      "title": "Robots",
+      "path": "securite",
+      "icon": "mdi:robot-vacuum",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "custom:dreame-vacuum-map-card",
+          "entity": "vacuum.d10_plus",
+          "title": "Cassandra",
+          "language": "fr",
+          "map_entity": "camera.d10_plus_map",
+          "default_mode": "all",
+          "map_overlays": [
+            "room_labels",
+            "vacuum",
+            "charger"
+          ],
+          "map_height": "520px"
+        }
+      ],
+      "type": "masonry",
+      "subview": false
+    },
+    {
+      "title": "Piscine & Spa",
+      "path": "piscine-spa",
+      "icon": "mdi:pool",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "entities",
+          "entities": [
+            "light.spa",
+            "switch.disjoncteur_spa_securite_enfant",
+            "light.pool_house_3"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Energie",
+      "path": "energie",
+      "icon": "mdi:lightning-bolt",
+      "theme": "Aurora",
+      "cards": [
+        {
+          "type": "markdown",
+          "content": "# Energie\n\n"
+        }
+      ],
+      "type": "masonry"
+    }
+  ]
+}
