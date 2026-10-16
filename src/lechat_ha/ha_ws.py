@@ -28,16 +28,13 @@ class _WsConn:
         return out
 
     def read_http_headers(self) -> str:
-        while b"
-
-" not in self.buf:
+        marker = b"\r\n\r\n"
+        while marker not in self.buf:
             chunk = self.sock.recv(4096)
             if not chunk:
                 raise ConnectionError("Pas de réponse HTTP")
             self.buf += chunk
-        head, self.buf = self.buf.split(b"
-
-", 1)
+        head, self.buf = self.buf.split(marker, 1)
         return head.decode(errors="replace")
 
     def send_frame(self, payload: bytes, opcode: int = 0x1) -> None:
@@ -99,20 +96,13 @@ def run_ws_commands(
         conn = _WsConn(sock)
         key = base64.b64encode(os.urandom(16)).decode()
         req = (
-            "GET /api/websocket HTTP/1.1
-"
-            f"Host: {host}:{port}
-"
-            "Upgrade: websocket
-"
-            "Connection: Upgrade
-"
-            f"Sec-WebSocket-Key: {key}
-"
-            "Sec-WebSocket-Version: 13
-"
-            "
-"
+            "GET /api/websocket HTTP/1.1\r\n"
+            f"Host: {host}:{port}\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n"
+            "\r\n"
         )
         sock.sendall(req.encode())
         resp = conn.read_http_headers()
