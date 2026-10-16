@@ -1,0 +1,70 @@
+{
+  "type": "custom:button-card",
+  "show_name": false,
+  "show_icon": false,
+  "show_state": false,
+  "grid_options": {
+    "columns": 6,
+    "rows": 5
+  },
+  "triggers_update": [
+    "weather.forecast_maison",
+    "sensor.previsions_meteo_maison"
+  ],
+  "custom_fields": {
+    "contenu": "[[[\n  const weather = states['weather.forecast_maison'];\n  const forecastSensor = states['sensor.previsions_meteo_maison'];\n\n  const temperature =\n    weather?.attributes?.temperature ?? '--';\n\n  const condition =\n    weather?.state ?? 'partlycloudy';\n\n  const forecasts =\n    forecastSensor?.attributes?.forecast ?? [];\n\n  const icons = {\n    'clear-night': '🌙',\n    sunny: '☀️',\n    partlycloudy: '🌤️',\n    cloudy: '☁️',\n    rainy: '🌧️',\n    pouring: '🌧️',\n    lightning: '⛈️',\n    'lightning-rainy': '⛈️',\n    snowy: '🌨️',\n    'snowy-rainy': '🌨️',\n    fog: '🌫️',\n    windy: '💨',\n    'windy-variant': '💨',\n    hail: '🌨️',\n    exceptional: '⚠️'\n  };\n\n  const descriptions = {\n    'clear-night': 'Nuit dégagée',\n    sunny: 'Ensoleillé',\n    partlycloudy: 'Partiellement nuageux',\n    cloudy: 'Nuageux',\n    rainy: 'Pluvieux',\n    pouring: 'Fortes pluies',\n    lightning: 'Orageux',\n    'lightning-rainy': 'Orage et pluie',\n    snowy: 'Neige',\n    'snowy-rainy': 'Neige et pluie',\n    fog: 'Brouillard',\n    windy: 'Venteux',\n    'windy-variant': 'Venteux',\n    hail: 'Grêle',\n    exceptional: 'Conditions exceptionnelles'\n  };\n\n  const labels = [\n    'AUJ.',\n    'DEM.',\n    'J+2',\n    'J+3',\n    'J+4'\n  ];\n\n  const formatTemp = (value) => {\n    if (value === undefined || value === null) return '--';\n\n    const n = Number(value);\n\n    if (Number.isNaN(n)) return '--';\n\n    return Number.isInteger(n)\n      ? n.toString()\n      : n.toFixed(1).replace('.', ',');\n  };\n\n  const forecastHtml =\n    Array.from({ length: 5 }, (_, index) => {\n\n      const item = forecasts[index];\n\n      if (!item) {\n        return `\n          <div class=\"jour\">\n            <div class=\"label\">${labels[index]}</div>\n            <div class=\"forecast-icon\">🌤️</div>\n            <div class=\"max\">--°</div>\n            <div class=\"min\">--°</div>\n          </div>\n        `;\n      }\n\n      const itemCondition =\n        item.condition ?? 'partlycloudy';\n\n      return `\n        <div class=\"jour\">\n\n          <div class=\"label\">\n            ${labels[index]}\n          </div>\n\n          <div class=\"forecast-icon\">\n            ${icons[itemCondition] ?? '🌤️'}\n          </div>\n\n          <div class=\"max\">\n            ${formatTemp(item.temperature)}°\n          </div>\n\n          <div class=\"min\">\n            ${formatTemp(item.templow)}°\n          </div>\n\n        </div>\n      `;\n    }).join('');\n\n  return `\n    <div class=\"meteo-v7\">\n\n      <div class=\"haut\">\n\n        <div class=\"icone-principale\">\n          ${icons[condition] ?? '🌤️'}\n        </div>\n\n        <div class=\"infos\">\n\n          <div class=\"titre\">\n            Météo Maison Blaise\n          </div>\n\n          <div class=\"temperature\">\n            ${formatTemp(temperature)}°C\n          </div>\n\n          <div class=\"condition\">\n            ${descriptions[condition] ?? condition}\n          </div>\n\n        </div>\n\n      </div>\n\n      <div class=\"separateur\"></div>\n\n      <div class=\"previsions\">\n        ${forecastHtml}\n      </div>\n\n    </div>\n  `;\n]]]\n"
+  },
+  "styles": {
+    "card": [
+      {
+        "width": "200%"
+      },
+      {
+        "height": "290px"
+      },
+      {
+        "padding": 0
+      },
+      {
+        "margin": 0
+      },
+      {
+        "overflow": "hidden"
+      },
+      {
+        "border-radius": "24px"
+      },
+      {
+        "background": "linear-gradient(145deg, rgba(3, 17, 31, 0.98), rgba(3, 11, 22, 0.98))"
+      },
+      {
+        "border": "1px solid rgba(0, 180, 255, 0.22)"
+      },
+      {
+        "box-shadow": "0 12px 35px rgba(0, 0, 0, 0.28)"
+      }
+    ],
+    "grid": [
+      {
+        "grid-template-areas": "\"contenu\""
+      },
+      {
+        "grid-template-columns": "100%"
+      },
+      {
+        "grid-template-rows": "100%"
+      }
+    ],
+    "custom_fields": {
+      "contenu": [
+        {
+          "width": "100%"
+        },
+        {
+          "height": "100%"
+        }
+      ]
+    }
+  },
+  "extra_styles": "\n.meteo-v7 {\n  width: 100%;\n  height: 100%;\n\n  box-sizing: border-box;\n\n  padding: 24px 28px 20px;\n\n  display: flex;\n  flex-direction: column;\n\n  color: white;\n\n  text-align: left;\n}\n\n.haut {\n  display: flex;\n  align-items: center;\n\n  min-height: 118px;\n}\n\n.icone-principale {\n  width: 120px;\n\n  flex: 0 0 120px;\n\n  display: flex;\n  align-items: center;\n  justify-content: center;\n\n  font-size: 72px;\n\n  line-height: 1;\n\n  filter:\n    drop-shadow(\n      0 0 10px rgba(255, 190, 40, 0.30)\n    );\n}\n\n.infos {\n  min-width: 0;\n\n  padding-left: 10px;\n}\n\n.titre {\n  margin-bottom: 4px;\n\n  color:\n    rgba(235, 242, 248, 0.82);\n\n  font-size:\n    clamp(12px, 0.9vw, 15px);\n\n  white-space: nowrap;\n}\n\n.temperature {\n  color: #ffffff;\n\n  font-size:\n    clamp(34px, 3vw, 48px);\n\n  font-weight: 600;\n\n  line-height: 1;\n\n  white-space: nowrap;\n}\n\n.condition {\n  margin-top: 7px;\n\n  color:\n    rgba(180, 200, 218, 0.72);\n\n  font-size:\n    clamp(11px, 0.8vw, 14px);\n}\n\n.separateur {\n  width: 100%;\n  height: 1px;\n\n  background:\n    rgba(255, 255, 255, 0.07);\n\n  margin:\n    4px 0 14px;\n}\n\n.previsions {\n  flex: 1;\n\n  display: grid;\n\n  grid-template-columns:\n    repeat(5, 1fr);\n\n  align-items: center;\n}\n\n.jour {\n  min-width: 0;\n\n  display: flex;\n  flex-direction: column;\n\n  align-items: center;\n\n  gap: 4px;\n\n  text-align: center;\n}\n\n.label {\n  color:\n    rgba(190, 205, 218, 0.75);\n\n  font-size:\n    clamp(8px, 0.62vw, 11px);\n\n  font-weight: 500;\n}\n\n.forecast-icon {\n  margin-top: 3px;\n\n  font-size:\n    clamp(23px, 1.8vw, 31px);\n\n  line-height: 1.15;\n}\n\n.max {\n  color:\n    rgba(245, 248, 252, 0.96);\n\n  font-size:\n    clamp(11px, 0.8vw, 14px);\n\n  font-weight: 700;\n}\n\n.min {\n  color:\n    rgba(160, 180, 198, 0.72);\n\n  font-size:\n    clamp(9px, 0.65vw, 11px);\n}\n\n@media (max-width: 1100px) {\n\n  .meteo-v7 {\n    padding-left: 18px;\n    padding-right: 18px;\n  }\n\n  .icone-principale {\n    width: 90px;\n    flex-basis: 90px;\n\n    font-size: 58px;\n  }\n\n}\n"
+}
