@@ -42,7 +42,7 @@ patch_awk() {
 
 echo "1/5 Detection de l installation..."
 
-# ---- Cas 1 : HA sous Docker (conteneur accessible) ----
+# ---- Cas 1 : HA sous Docker ----
 if command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1; then
   HA=$(docker ps --format '{{.Names}}' | grep -iE 'home.?assistant' | head -1)
   if [ -n "$HA" ]; then
@@ -61,7 +61,7 @@ if command -v docker >/dev/null 2>&1 && docker ps >/dev/null 2>&1; then
   fi
 fi
 
-# ---- Cas 2 : Home Assistant OS ou Supervised (shell hote) ----
+# ---- Cas 2 : Home Assistant OS ou Supervised ----
 CFG=""
 [ -d /mnt/data/supervisor/homeassistant ] && CFG=/mnt/data/supervisor/homeassistant
 [ -z "$CFG" ] && [ -d /usr/share/hassio/homeassistant ] && CFG=/usr/share/hassio/homeassistant
