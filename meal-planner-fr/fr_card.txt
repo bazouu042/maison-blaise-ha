@@ -1,0 +1,11 @@
+{
+    weekdays: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
+    notPlanned: 'Non prévu',
+    eatingOut: 'Restaurant',
+    order: 'Livraison',
+    nothing: 'Pas de cuisson',
+    today: 'Aujourd\'hui',
+    tomorrow: 'Demain',
+    inDays: n => `dans ${n} jours`,
+    nothingUpcoming: 'Rien de prévu pour l\'instant',
+  }
