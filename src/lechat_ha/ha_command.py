@@ -5,9 +5,9 @@ Trois modes d'entrée :
 - WebSocket (ws_commands) : commandes API WebSocket de Home Assistant,
   nécessaires pour tout ce qui n'est pas exposé en REST (dashboards
   Lovelace, par exemple).
-- SSH (ssh_command) : exécute une commande PowerShell sur le PC JARVIS
-  (Windows), en LAN direct depuis le ZimaOS. Utilisé pour la maintenance
-  du dossier Jarvis (C:\Users\adminlocal\AppData\Local\TechEnClair\Jarvis).
+- SSH (ssh_command) : exécute une commande sur le PC JARVIS (Windows),
+  en LAN direct depuis le ZimaOS. Utilisé pour la maintenance du dossier
+  Jarvis (C:/Users/adminlocal/AppData/Local/TechEnClair/Jarvis).
 C'est l'assistant du chat qui traduit le langage naturel en appel API.
 """
 
@@ -47,7 +47,7 @@ class HaCommandInput(BaseModel):
         default=None,
         description=(
             "Commande à exécuter sur le PC JARVIS (Windows, via SSH en LAN). "
-            "Ex: 'dir C:\\Users\\adminlocal\\AppData\\Local\\TechEnClair\\Jarvis'"
+            "Ex: 'dir C:/Users/adminlocal/AppData/Local/TechEnClair/Jarvis'"
         ),
     )
     ssh_host: str | None = None
