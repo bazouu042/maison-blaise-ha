@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Champi'Recon",
+    "slug": "champi-recon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "champirecon",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1b3a2a"
+    },
+    "android": {
+      "package": "com.champirecon.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1b3a2a"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application a besoin d'accéder à vos photos pour identifier les champignons.",
+          "cameraPermission": "L'application a besoin d'accéder à la caméra pour photographier les champignons."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "L'application peut enregistrer le lieu de vos trouvailles de champignons."
+        }
+      ]
+    ]
+  }
+}
