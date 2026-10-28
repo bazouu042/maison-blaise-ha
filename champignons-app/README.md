@@ -62,17 +62,46 @@ npm start          # lance le serveur Expo (QR code dans le terminal)
 5. **Identifier un champignon** → prends des photos → **choisis un ou plusieurs moteurs** → lance l'analyse.
 6. Compare les résultats **côte à côte** et lis le **bandeau de consensus**.
 
-## 4. Générer l'APK (installation définitive)
+## 4. Générer l'APK v1 (installation définitive) — guide clic par clic
+
+Une fois l'APK installé, **tu n'as plus besoin du PC** : l'appli a sa propre icône 🍄 sur ton
+écran d'accueil et fonctionne partout, même sans Wi-Fi (mode hors ligne intégré).
+
+### Sur ton ordinateur (Terminal, dans le dossier `champignons-app`) :
 
 ```bash
 npm install -g eas-cli
-eas login                 # compte Expo gratuit
-eas build:configure
-eas build --platform android --profile preview   # produit un APK téléchargeable
+eas login
 ```
 
-Télécharge l'APK depuis le lien fourni, puis sur le téléphone :
-**Paramètres → Sécurité → Autoriser les installations depuis cette source**, puis ouvre l'APK.
+- `eas login` ouvre une page dans ton navigateur → crée un **compte Expo gratuit** (ou connecte-toi).
+- Reviens dans le Terminal, confirme que tu es connecté.
+
+```bash
+eas build:configure
+eas build --platform android --profile preview
+```
+
+- `eas build:configure` : répond **Oui** à la question (ça écrit le `projectId` dans `app.json`).
+- `eas build ...` : le build démarre sur les serveurs d'Expo (**gratuit**). ⏳ **Attends 5 à 15 minutes**.
+- À la fin, un lien `https://expo.dev/.../*.apk` s'affiche → **copie-le**.
+
+### Récupérer l'APK sur ton téléphone :
+
+**Méthode simple** : ouvre le lien sur ton téléphone (envoie-toi le lien par SMS/mail) → le fichier `.apk` se télécharge.
+
+### Installer l'APK sur ton téléphone :
+
+1. Ouvre le fichier `.apk` téléchargé (dans « Téléchargements »).
+2. Android affiche un avertissement : appuie sur **« Paramètres »** → active **« Autoriser les installations depuis cette source »** → reviens en arrière.
+3. Appuie sur **« Installer »** ✅
+4. L'icône **Champi'Recon 🍄** apparaît sur ton écran d'accueil.
+5. **Supprime Expo Go** si tu veux (plus nécessaire).
+
+### ⚠️ Garde précieusement ton APK
+
+Télécharge-le aussi sur ton ordinateur (le lien expire après un moment). Nomme-le
+`champi-recon-v1.0.0.apk` et garde-le : c'est ta sauvegarde de la v1.
 
 ## Arborescence
 

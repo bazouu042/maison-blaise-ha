@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import Constants from 'expo-constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
 import { SafetyBanner } from '../components/SafetyBanner';
@@ -89,6 +90,9 @@ export default function AccueilScreen() {
         <Text style={[styles.pied, { color: theme.textMuted }]}>
           Fonctionne hors ligne : vos photos sont gardées et analysées dès le retour du réseau.
         </Text>
+        <Text style={[styles.version, { color: theme.textMuted }]}>
+          🍄 Champi’Recon v{Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -145,5 +149,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 16,
     lineHeight: 17,
+  },
+  version: {
+    textAlign: 'center',
+    fontSize: 11,
+    marginTop: 6,
+    fontWeight: '600',
+    opacity: 0.7,
   },
 });
