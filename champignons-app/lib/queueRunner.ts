@@ -22,13 +22,15 @@ async function traiterFile() {
       (item) => item.enAttenteHorsLigne && item.statut === 'en_attente',
     );
     for (const item of enAttente) {
+      // Les anciennes entrées (avant multi-moteurs) n'ont pas le champ moteurs.
+      const moteurs = item.moteurs ?? ['mistral'];
       const enLigne = await verifierReseau();
       if (!enLigne) break;
       item.statut = 'analyse';
       item.enAttenteHorsLigne = false;
       await mettreAJourIdentification(item);
       const resultatsMoteurs = await executerMoteurs(
-        item.moteurs,
+        moteurs,
         item.photos.map((uri) => ({ uri })),
         item.reponsesUtilisateur,
         config,

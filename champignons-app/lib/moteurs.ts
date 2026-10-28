@@ -23,7 +23,10 @@ export async function executerMoteur(
         }
         return analyserAvecMistral(config.cle, config.modele, photos, reponses);
       case 'inaturalist':
-        return analyserAvecINaturalist(photos);
+        return analyserAvecINaturalist(photos, {
+          appId: config?.inatAppId ?? '',
+          appSecret: config?.inatAppSecret ?? '',
+        });
       case 'kindwise':
         if (!config?.cleKindwise) {
           return {

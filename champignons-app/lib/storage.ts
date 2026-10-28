@@ -18,10 +18,12 @@ export async function sauverCleApi(
   cle: string,
   modele: string,
   cleKindwise?: string,
+  inatAppId?: string,
+  inatAppSecret?: string,
 ): Promise<void> {
   await AsyncStorage.setItem(
     CLE_API,
-    JSON.stringify({ cle, modele, cleKindwise } satisfies CleApiStockee),
+    JSON.stringify({ cle, modele, cleKindwise, inatAppId, inatAppSecret } satisfies CleApiStockee),
   );
 }
 
@@ -30,6 +32,17 @@ export async function sauverCleKindwise(cleKindwise: string): Promise<void> {
   await AsyncStorage.setItem(
     CLE_API,
     JSON.stringify({ ...config, cleKindwise } satisfies CleApiStockee),
+  );
+}
+
+export async function sauverIdentifiantsINaturalist(
+  inatAppId: string,
+  inatAppSecret: string,
+): Promise<void> {
+  const config = (await chargerCleApi()) ?? { cle: '', modele: 'mistral-medium-latest' };
+  await AsyncStorage.setItem(
+    CLE_API,
+    JSON.stringify({ ...config, inatAppId, inatAppSecret } satisfies CleApiStockee),
   );
 }
 

@@ -43,6 +43,8 @@ export default function ResultScreen() {
 
   const resultat = identification.resultat;
   const date = new Date(identification.date).toLocaleString('fr-FR');
+  const photos = identification.photos ?? [];
+  const moteurs = identification.moteurs ?? [];
   const resultatsMoteurs = identification.resultatsMoteurs ?? [];
   const hypothesesDivergentes =
     identification.consensus?.statut === 'divergent'
@@ -74,12 +76,12 @@ export default function ResultScreen() {
         <Text style={[styles.titre, { color: theme.text }]}>🍄 Fiche d’identification</Text>
         <Text style={[styles.date, { color: theme.textMuted }]}>
           {date}
-          {identification.moteurs.length > 0 ? ` · Moteurs : ${nomsMoteurs(identification.moteurs)}` : ''}
+          {moteurs.length > 0 ? ` · Moteurs : ${nomsMoteurs(moteurs)}` : ''}
         </Text>
 
-        {identification.photos.length > 0 && (
+        {photos.length > 0 && (
           <View style={styles.grillePhotos}>
-            {identification.photos.map((uri, index) => (
+            {photos.map((uri, index) => (
               <PhotoThumb key={uri + index} uri={uri} taille={96} />
             ))}
           </View>
@@ -181,7 +183,7 @@ export default function ResultScreen() {
               <SectionCarte theme={theme} titre="🍂 Saison" texte={resultat.saison} />
             ) : null}
 
-            {resultat.confusions.length > 0 && (
+            {(resultat.confusions ?? []).length > 0 && (
               <View style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <Text style={[styles.titreCarte, { color: theme.text }]}>
                   ⚠️ Confusions possibles
@@ -194,7 +196,7 @@ export default function ResultScreen() {
               </View>
             )}
 
-            {resultat.questions_supplementaires.length > 0 && (
+            {(resultat.questions_supplementaires ?? []).length > 0 && (
               <View style={[styles.carte, { backgroundColor: theme.accent + '18', borderColor: theme.accent }]}>
                 <Text style={[styles.titreCarte, { color: theme.text }]}>
                   ❓ Pour affiner l’identification

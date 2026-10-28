@@ -4,7 +4,14 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
 import { SafetyBanner } from '../components/SafetyBanner';
-import { chargerCleApi, sauverCleApi, sauverCleKindwise, supprimerCleApi } from '../lib/storage';
+import {
+  chargerCleApi,
+  sauverCleApi,
+  sauverCleKindwise,
+  sauverIdentifiantsINaturalist,
+  supprimerCleApi,
+} from '../lib/storage';
+import { INATURALIST_VERROUILLE, TEXTE_INATURALIST_VERROUILLE } from '../lib/inaturalist';
 import { useAppTheme } from '../lib/theme';
 
 const MODELES = ['mistral-medium-latest', 'mistral-large-latest', 'mistral-small-latest'];
@@ -14,6 +21,8 @@ export default function SettingsScreen() {
   const theme = useAppTheme();
   const [cle, setCle] = useState('');
   const [cleKindwise, setCleKindwise] = useState('');
+  const [inatAppId, setInatAppId] = useState('');
+  const [inatAppSecret, setInatAppSecret] = useState('');
   const [modele, setModele] = useState(MODELE_PAR_DEFAUT);
   const [enregistre, setEnregistre] = useState(false);
   const [masque, setMasque] = useState(true);
@@ -24,6 +33,8 @@ export default function SettingsScreen() {
       if (config) {
         setCle(config.cle);
         setCleKindwise(config.cleKindwise ?? '');
+        setInatAppId(config.inatAppId ?? '');
+        setInatAppSecret(config.inatAppSecret ?? '');
         setModele(config.modele || MODELE_PAR_DEFAUT);
         setEnregistre(true);
       }
@@ -35,7 +46,13 @@ export default function SettingsScreen() {
       Alert.alert('Clé vide', 'Colle ta clé API Mistral (le moteur IA Mistral ne fonctionnera pas sans).');
       return;
     }
-    await sauverCleApi(cle.trim(), modele, cleKindwise.trim() || undefined);
+    await sauverCleApi(
+      cle.trim(),
+      modele,
+      cleKindwise.trim() || undefined,
+      inatAppId.trim() || undefined,
+      inatAppSecret.trim() || undefined,
+    );
     setEnregistre(true);
     Alert.alert('✅ Enregistré', 'Tes clés API sont stockées uniquement sur cet appareil.');
   }
@@ -49,6 +66,18 @@ export default function SettingsScreen() {
     Alert.alert('✅ Enregistré', 'Ta clé Kindwise est stockée uniquement sur cet appareil.');
   }
 
+  async function enregistrerINaturalist() {
+    if (!inatAppId.trim() || !inatAppSecret.trim()) {
+      Alert.alert(
+        'Identifiants incomplets',
+        'Le moteur iNaturalist a besoin d’un app_id et d’un app_secret (application OAuth2 créée sur inaturalist.org).',
+      );
+      return;
+    }
+    await sauverIdentifiantsINaturalist(inatAppId.trim(), inatAppSecret.trim());
+    Alert.alert('✅ Enregistré', 'Tes identifiants iNaturalist sont stockés uniquement sur cet appareil.');
+  }
+
   async function oublier() {
     Alert.alert('Oublier les clés', 'Supprimer les clés API de cet appareil ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -59,6 +88,8 @@ export default function SettingsScreen() {
           await supprimerCleApi();
           setCle('');
           setCleKindwise('');
+          setInatAppId('');
+          setInatAppSecret('');
           setEnregistre(false);
         },
       },
@@ -135,6 +166,53 @@ export default function SettingsScreen() {
             <Switch value={!masqueKindwise} onValueChange={(v) => setMasqueKindwise(!v)} />
           </View>
           <AppButton titre="💾 Enregistrer la clé Kindwise" variante="secondaire" onPress={enregistrerKindwise} />
+        </View>
+
+        <View style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.titreCarte, { color: theme.text }]}>
+            🔬 Identifiants iNaturalist (moteur « IA iNaturalist »)
+            {INATURALIST_VERROUILLE ? ' — 🔒 bientôt disponible' : ''}
+          </Text>
+          <Text style={[styles.aide, { color: theme.textMuted }]}>
+            {INATURALIST_VERROUILLE
+              ? `${TEXTE_INATURALIST_VERROUILLE} Quand tu auras créé ton application OAuth2 sur inaturalist.org (réglages du compte → Applications), colle ici ton app_id et ton app_secret : le moteur se réveillera automatiquement.`
+              : 'Identifiants OAuth2 de ton application iNaturalist (app_id / app_secret).'}
+          </Text>
+          <TextInput
+            style={[
+              styles.champ,
+              { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border },
+            ]}
+            placeholder="app_id iNaturalist…"
+            placeholderTextColor={theme.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={inatAppId}
+            onChangeText={setInatAppId}
+          />
+          <TextInput
+            style={[
+              styles.champ,
+              { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border },
+            ]}
+            placeholder="app_secret iNaturalist…"
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={inatAppSecret}
+            onChangeText={setInatAppSecret}
+          />
+          <AppButton
+            titre="💾 Enregistrer les identifiants iNaturalist"
+            variante="secondaire"
+            onPress={enregistrerINaturalist}
+          />
+          <AppButton
+            titre="🌿 Ouvrir inaturalist.org"
+            variante="secondaire"
+            onPress={() => Linking.openURL('https://www.inaturalist.org')}
+          />
         </View>
 
         {enregistre && (

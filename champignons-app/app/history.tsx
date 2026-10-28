@@ -9,7 +9,7 @@ import { labelComestibilite, labelConfiance, META_MOTEURS, texteConsensus } from
 import { nomsMoteurs } from '../lib/consensus';
 import { chargerHistorique, viderHistorique } from '../lib/storage';
 import { useAppTheme } from '../lib/theme';
-import type { Identification } from '../lib/types';
+import type { Identification, ResultatMoteur } from '../lib/types';
 
 function badgeStatut(item: Identification, theme: ReturnType<typeof useAppTheme>) {
   switch (item.statut) {
@@ -24,26 +24,31 @@ function badgeStatut(item: Identification, theme: ReturnType<typeof useAppTheme>
       return { texte: '❌ Erreur', couleur: theme.danger };
     case 'terminee':
       return { texte: '✅ Terminée', couleur: theme.success };
+    default:
+      return { texte: '⏳ En attente', couleur: theme.warning };
   }
 }
 
 function nomAffichage(item: Identification): { nom: string; sousTitre?: string } {
-  const actifs = (item.resultatsMoteurs ?? []).filter((r) => r.succes && r.hypotheses.length > 0);
-  const mistral = item.resultatsMoteurs?.find((r) => r.moteur === 'mistral');
+  const resultats: ResultatMoteur[] = item.resultatsMoteurs ?? [];
+  const actifs = resultats.filter((r) => r.succes && r.hypotheses.length > 0);
+  const mistral = resultats.find((r) => r.moteur === 'mistral');
   if (item.consensus?.statut === 'convergent' && item.consensus.especeCommune) {
     return { nom: `🤝 ${item.consensus.especeCommune}`, sousTitre: 'Convergence de plusieurs moteurs' };
   }
   if (actifs.length > 0) {
     const meilleur = actifs.reduce((a, b) =>
-      b.hypotheses[0].score > a.hypotheses[0].score ? b : a,
+      (b.hypotheses[0]?.score ?? 0) > (a.hypotheses[0]?.score ?? 0) ? b : a,
     );
+    const hyp = meilleur.hypotheses[0];
     return {
-      nom: meilleur.hypotheses[0].nomScientifique,
-      sousTitre: `${META_MOTEURS[meilleur.moteur].titre} (${meilleur.hypotheses[0].score} %)`,
+      nom: hyp.nomScientifique,
+      sousTitre: `${META_MOTEURS[meilleur.moteur]?.titre ?? meilleur.moteur} (${hyp.score} %)`,
     };
   }
-  if (mistral?.ficheMistral?.nom_scientifique) {
-    return { nom: mistral.ficheMistral.nom_commun, sousTitre: mistral.ficheMistral.nom_scientifique };
+  const fiche = mistral?.ficheMistral ?? item.resultat;
+  if (fiche?.nom_scientifique) {
+    return { nom: fiche.nom_commun, sousTitre: fiche.nom_scientifique };
   }
   return { nom: 'Identification en cours' };
 }
@@ -112,10 +117,14 @@ export default function HistoryScreen() {
         }
         ListFooterComponent={<SafetyBanner />}
         renderItem={({ item }) => {
+          const photos = item.photos ?? [];
+          const moteurs = item.moteurs ?? [];
+          const resultatsMoteurs = item.resultatsMoteurs ?? [];
           const statut = badgeStatut(item, theme);
           const affichage = nomAffichage(item);
-          const mistral = item.resultatsMoteurs?.find((r) => r.moteur === 'mistral');
+          const mistral = resultatsMoteurs.find((r) => r.moteur === 'mistral');
           const fiche = mistral?.ficheMistral ?? item.resultat;
+          const consensus = item.consensus;
           return (
             <TouchableOpacity
               style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -123,8 +132,8 @@ export default function HistoryScreen() {
               accessibilityRole="button"
             >
               <View style={styles.ligneCarte}>
-                {item.photos[0] ? (
-                  <PhotoThumb uri={item.photos[0]} taille={64} />
+                {photos[0] ? (
+                  <PhotoThumb uri={photos[0]} taille={64} />
                 ) : (
                   <View
                     style={[
@@ -147,19 +156,19 @@ export default function HistoryScreen() {
                   <Text style={[styles.date, { color: theme.textMuted }]}>
                     {new Date(item.date).toLocaleString('fr-FR')}
                     {item.latitude != null ? ' · 📍' : ''}
-                    {item.photos.length > 1 ? ` · ${item.photos.length} photos` : ''}
-                    {item.moteurs.length > 0 ? ` · ${nomsMoteurs(item.moteurs)}` : ''}
+                    {photos.length > 1 ? ` · ${photos.length} photos` : ''}
+                    {moteurs.length > 0 ? ` · ${nomsMoteurs(moteurs)}` : ''}
                   </Text>
                   <View style={styles.ligneBadges}>
                     <View style={[styles.badge, { backgroundColor: statut.couleur + '25' }]}>
                       <Text style={[styles.texteBadge, { color: statut.couleur }]}>{statut.texte}</Text>
                     </View>
-                    {item.consensus && (
+                    {consensus && (
                       <View
                         style={[
                           styles.badge,
                           {
-                            backgroundColor: theme[texteConsensus(item.consensus.statut).couleur] + '25',
+                            backgroundColor: theme[texteConsensus(consensus.statut).couleur] + '25',
                           },
                         ]}
                       >
@@ -167,10 +176,10 @@ export default function HistoryScreen() {
                           style={{
                             fontSize: 11,
                             fontWeight: '700',
-                            color: theme[texteConsensus(item.consensus.statut).couleur],
+                            color: theme[texteConsensus(consensus.statut).couleur],
                           }}
                         >
-                          {texteConsensus(item.consensus.statut).titre}
+                          {texteConsensus(consensus.statut).titre}
                         </Text>
                       </View>
                     )}

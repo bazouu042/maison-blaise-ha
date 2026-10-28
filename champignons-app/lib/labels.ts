@@ -71,7 +71,7 @@ export const META_MOTEURS: Record<
     icone: '🔬',
     couleur: '#1e8e3e',
     description:
-      'Vision par ordinateur iNaturalist — gratuit, sans clé. Souvent au niveau du genre. Compte iNaturalist (gratuit) pour soumettre l’observation et la faire valider par la communauté.',
+      'Bientôt disponible 🔒 — nécessite un compte iNaturalist de 2 mois avec activité. En attendant, soumets tes observations manuellement sur inaturalist.org (validation humaine gratuite).',
   },
   kindwise: {
     titre: 'Expert Kindwise',

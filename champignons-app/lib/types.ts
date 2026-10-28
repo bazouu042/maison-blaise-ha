@@ -81,4 +81,6 @@ export interface CleApiStockee {
   cle: string;
   modele: string;
   cleKindwise?: string;
+  inatAppId?: string;
+  inatAppSecret?: string;
 }
