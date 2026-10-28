@@ -4,12 +4,15 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
 import { ConfidenceBadge } from '../components/ConfidenceBadge';
+import { ConsensusBanner } from '../components/ConsensusBanner';
+import { MoteurCard } from '../components/MoteurCard';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SafetyBanner } from '../components/SafetyBanner';
-import { labelComestibilite } from '../lib/labels';
+import { labelComestibilite, META_MOTEURS } from '../lib/labels';
+import { nomsMoteurs } from '../lib/consensus';
 import { chargerHistorique, supprimerIdentification } from '../lib/storage';
 import { useAppTheme } from '../lib/theme';
-import type { Identification } from '../lib/types';
+import type { Identification, NomMoteur } from '../lib/types';
 
 export default function ResultScreen() {
   const theme = useAppTheme();
@@ -40,6 +43,16 @@ export default function ResultScreen() {
 
   const resultat = identification.resultat;
   const date = new Date(identification.date).toLocaleString('fr-FR');
+  const resultatsMoteurs = identification.resultatsMoteurs ?? [];
+  const hypothesesDivergentes =
+    identification.consensus?.statut === 'divergent'
+      ? resultatsMoteurs
+          .filter((r) => r.succes && r.hypotheses.length > 0)
+          .map((r) => ({
+            moteur: META_MOTEURS[r.moteur].titre,
+            nom: r.hypotheses[0].nomScientifique,
+          }))
+      : [];
 
   async function supprimer() {
     Alert.alert('Supprimer', 'Supprimer cette identification de l’historique ?', [
@@ -59,7 +72,10 @@ export default function ResultScreen() {
     <SafeAreaView style={[styles.fond, { backgroundColor: theme.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.contenu}>
         <Text style={[styles.titre, { color: theme.text }]}>🍄 Fiche d’identification</Text>
-        <Text style={[styles.date, { color: theme.textMuted }]}>{date}</Text>
+        <Text style={[styles.date, { color: theme.textMuted }]}>
+          {date}
+          {identification.moteurs.length > 0 ? ` · Moteurs : ${nomsMoteurs(identification.moteurs)}` : ''}
+        </Text>
 
         {identification.photos.length > 0 && (
           <View style={styles.grillePhotos}>
@@ -95,8 +111,27 @@ export default function ResultScreen() {
           </View>
         )}
 
+        {identification.consensus && (
+          <ConsensusBanner
+            consensus={identification.consensus}
+            hypothesesDivergentes={hypothesesDivergentes}
+          />
+        )}
+
+        {resultatsMoteurs.length > 0 && (
+          <View style={styles.pileMoteurs}>
+            <Text style={[styles.titreSection, { color: theme.text }]}>
+              🔬 Résultats par moteur
+            </Text>
+            {resultatsMoteurs.map((r) => (
+              <MoteurCard key={r.moteur} resultat={r} />
+            ))}
+          </View>
+        )}
+
         {resultat && (
           <>
+            <Text style={[styles.titreSection, { color: theme.text }]}>📝 Fiche du mycologue IA</Text>
             <View style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <Text style={[styles.nomCommun, { color: theme.text }]}>{resultat.nom_commun}</Text>
               <Text style={[styles.nomScientifique, { color: theme.textMuted }]}>
@@ -180,6 +215,14 @@ export default function ResultScreen() {
           </>
         )}
 
+        {resultatsMoteurs.length === 0 && !resultat && identification.statut === 'terminee' && (
+          <View style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={{ color: theme.textMuted, lineHeight: 19 }}>
+              Aucun moteur n’a retourné de résultat pour cette identification.
+            </Text>
+          </View>
+        )}
+
         <SafetyBanner />
 
         <AppButton titre="🗑️ Supprimer cette identification" variante="danger" onPress={supprimer} />
@@ -240,6 +283,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     gap: 8,
+  },
+  pileMoteurs: {
+    gap: 10,
+  },
+  titreSection: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginTop: 4,
   },
   nomCommun: {
     fontSize: 24,

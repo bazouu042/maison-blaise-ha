@@ -9,6 +9,8 @@ export type Comestibilite =
   | 'mortel'
   | 'inconnu';
 
+export type NiveauComestibilite = 'ok' | 'attention' | 'danger' | 'inconnu';
+
 export interface ReponseMycologue {
   nom_commun: string;
   nom_scientifique: string;
@@ -28,11 +30,45 @@ export interface PhotoCapture {
 
 export type StatutIdentification = 'en_attente' | 'analyse' | 'terminee' | 'erreur';
 
+export type NomMoteur = 'mistral' | 'inaturalist' | 'kindwise';
+
+export interface HypotheseMoteur {
+  nomScientifique: string;
+  nomCommun?: string;
+  score: number;
+  lien?: string;
+  comestibilite?: string;
+  pictoComestibilite?: string;
+  niveauComestibilite?: NiveauComestibilite;
+  sosies?: string[];
+}
+
+export interface ResultatMoteur {
+  moteur: NomMoteur;
+  succes: boolean;
+  erreur?: string;
+  hypotheses: HypotheseMoteur[];
+  ficheMistral?: ReponseMycologue;
+  note?: string;
+}
+
+export type StatutConsensus = 'convergent' | 'genre' | 'divergent' | 'unique';
+
+export interface Consensus {
+  statut: StatutConsensus;
+  especeCommune?: string;
+  genreCommun?: string;
+  moteursImpliques: NomMoteur[];
+}
+
 export interface Identification {
   id: string;
   date: string;
   photos: string[];
   reponsesUtilisateur: Record<string, string>;
+  moteurs: NomMoteur[];
+  resultatsMoteurs?: ResultatMoteur[];
+  consensus?: Consensus;
   resultat?: ReponseMycologue;
   statut: StatutIdentification;
   erreur?: string;
@@ -44,4 +80,5 @@ export interface Identification {
 export interface CleApiStockee {
   cle: string;
   modele: string;
+  cleKindwise?: string;
 }

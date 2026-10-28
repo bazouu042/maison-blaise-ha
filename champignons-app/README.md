@@ -1,7 +1,18 @@
 # 🍄 Champi'Recon — Reconnaissance de champignons (Android, hors ligne)
 
 Application Android en **React Native / Expo (TypeScript, Expo Router)** qui identifie les
-champignons à partir de photos, via l'**API Mistral** (modèle de vision `mistral-medium-latest`, Mistral Medium 3.5).
+champignons à partir de photos, avec **3 moteurs d'identification** au choix, comparés côte à côte :
+
+1. **🤖 IA Mistral** (`mistral-medium-latest`, Mistral Medium 3.5) — fiche mycologue détaillée,
+   questions complémentaires en cas de doute. Clé API Mistral requise.
+2. **🔬 IA iNaturalist** — API Computer Vision d'iNaturalist. **Gratuit, sans clé API.**
+   Souvent au niveau du genre ; compte iNaturalist (gratuit) pour soumettre l'observation et
+   recevoir une validation humaine de la communauté.
+3. **🍄 Expert Kindwise** — spécialiste champignons (candidats, comestibilité, sosies).
+   Clé API Kindwise requise (100 identifications/mois gratuites).
+
+Un **bandeau de consensus** compare les moteurs : convergence sur une espèce ✅, convergence
+au niveau du genre ⚠️, ou désaccord ⚠️ (avec les hypothèses affichées).
 
 ## ⚠️ Sécurité
 
@@ -12,15 +23,16 @@ champignons à partir de photos, via l'**API Mistral** (modèle de vision `mistr
 ## Fonctionnalités
 
 - 📷 Photo (caméra) ou import galerie, **jusqu'à 8 photos** par champignon
-- 🤖 Analyse IA (API Mistral) : nom commun FR + nom scientifique, confiance, comestibilité,
-  description, habitat, saison, confusions possibles
+- 🧠 **3 moteurs au choix** (sélection multiple, résultats côte à côte) :
+  IA Mistral (fiche mycologue), iNaturalist (gratuit, sans clé), Kindwise (spécialiste)
+- 🤝 **Bandeau de consensus** : convergent ✅ / genre ⚠️ / divergent ⚠️ avec les hypothèses
 - ❓ **Questions complémentaires** quand les photos sont insuffisantes (les réponses sont
   renvoyées à l'IA pour une seconde analyse)
 - 📡 **Mode hors ligne** : détection du réseau, photos mises en file d'attente, questionnaire
   du mycologue proposé, **reprise automatique de l'analyse au retour du réseau**
 - 🕘 Historique local complet (AsyncStorage) avec photos, date, GPS, résultat
 - 📍 Géolocalisation optionnelle de la trouvaille
-- 🔑 Clé API Mistral saisie dans l'app (stockée localement, jamais dans le code)
+- 🔑 Clés API Mistral + Kindwise saisies dans l'app (stockées localement, jamais dans le code) ; iNaturalist sans clé
 - 🌗 Mode sombre automatique, thème nature (vert forêt / beige), interface 100 % française
 
 ## 1. Prérequis
@@ -43,8 +55,9 @@ npm start          # lance le serveur Expo (QR code dans le terminal)
 1. Installe **Expo Go** sur ton Android (Play Store).
 2. Assure-toi que **l'ordinateur et le téléphone sont sur le même Wi-Fi**.
 3. Ouvre Expo Go et scanne le **QR code** affiché dans le terminal.
-4. Dans l'app : **Réglages → colle ta clé API Mistral → Enregistrer**.
-5. **Identifier un champignon** → prends des photos → lance l'analyse.
+4. Dans l'app : **Réglages → colle ta clé API Mistral → Enregistrer** (et la clé Kindwise si tu veux le 3ᵉ moteur ; iNaturalist n'en a pas besoin).
+5. **Identifier un champignon** → prends des photos → **choisis un ou plusieurs moteurs** → lance l'analyse.
+6. Compare les résultats **côte à côte** et lis le **bandeau de consensus**.
 
 ## 4. Générer l'APK (installation définitive)
 
@@ -65,17 +78,22 @@ champignons-app/
 ├── app/
 │   ├── _layout.tsx      # layout racine (Stack, file hors ligne démarrée ici)
 │   ├── index.tsx        # accueil
-│   ├── identify.tsx     # capture photos + questions complémentaires + envoi IA
-│   ├── result.tsx       # fiche résultat (comestibilité, confusions, avertissement)
+│   ├── identify.tsx     # capture photos + sélection des moteurs + questions + envoi
+│   ├── result.tsx       # résultats par moteur + consensus + fiche mycologue
 │   ├── history.tsx      # historique local
-│   └── settings.tsx     # clé API Mistral + modèle
-├── components/          # AppButton, PhotoThumb, ConfidenceBadge, SafetyBanner
+│   └── settings.tsx     # clés API Mistral + Kindwise + modèle
+├── components/          # AppButton, PhotoThumb, ConfidenceBadge, SafetyBanner,
+│   │                    # SelecteurMoteurs, MoteurCard, ConsensusBanner
 ├── lib/
-│   ├── types.ts         # types Identification, ReponseMycologue…
+│   ├── types.ts         # types Identification, ReponseMycologue, ResultatMoteur, Consensus…
 │   ├── theme.ts         # thème clair/sombre
-│   ├── labels.ts        # avertissement sécurité, libellés, questionnaire hors ligne
-│   ├── mistral.ts       # prompt système mycologue + appel API + parsing JSON robuste
-│   ├── storage.ts       # AsyncStorage (clé API + historique)
+│   ├── labels.ts        # avertissement sécurité, libellés, métadonnées des 3 moteurs
+│   ├── mistral.ts       # moteur 1 : prompt système mycologue + appel API + parsing JSON
+│   ├── inaturalist.ts   # moteur 2 : API Computer Vision iNaturalist (sans clé)
+│   ├── kindwise.ts      # moteur 3 : API Kindwise (spécialiste champignons)
+│   ├── moteurs.ts       # orchestrateur : moteurs en parallèle, erreurs isolées
+│   ├── consensus.ts     # comparaison des hypothèses (espèce / genre / divergence)
+│   ├── storage.ts       # AsyncStorage (clés API + historique)
 │   ├── network.ts       # détection du réseau
 │   └── queueRunner.ts   # file d'attente : relance auto des analyses au retour du réseau
 ├── assets/              # icône, splash (générés)
@@ -98,6 +116,10 @@ npm run typecheck        # tsc --noEmit : aucune erreur TypeScript
 - [ ] Expo Go ouvre l'app sur le téléphone (même Wi-Fi)
 - [ ] La clé API est enregistrée dans Réglages
 - [ ] Une photo de champignon → analyse → fiche avec nom FR + nom scientifique
+- [ ] Les 3 moteurs cochés → 3 cartes de résultats + bandeau de consensus
+- [ ] iNaturalist sans aucune clé → suggestions avec scores et liens
+- [ ] Mode avion → file d'attente → reprise auto au retour du réseau
+- [ ] Clé Kindwise absente → seul Kindwise échoue, les autres moteurs continuent
 - [ ] L'avertissement « Ne consomme jamais… » est visible sur chaque écran
 - [ ] Mode avion → photo → « en attente (hors ligne) » → désactive le mode avion →
       l'analyse se termine toute seule dans l'historique

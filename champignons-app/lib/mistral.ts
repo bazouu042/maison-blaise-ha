@@ -1,5 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import type { PhotoCapture, ReponseMycologue } from './types';
+import type {
+  HypotheseMoteur,
+  PhotoCapture,
+  ReponseMycologue,
+  ResultatMoteur,
+} from './types';
+import { niveauDepuisComestibilite, labelComestibilite } from './labels';
 
 const URL_API = 'https://api.mistral.ai/v1/chat/completions';
 const MODELE_PAR_DEFAUT = 'mistral-medium-latest';
@@ -88,82 +94,114 @@ export function parserReponseMycologue(texte: string): ReponseMycologue {
   };
 }
 
-export interface ResultatAnalyse {
-  resultat: ReponseMycologue;
-}
-
-export async function analyserChampignon(
+export async function analyserAvecMistral(
   cleApi: string,
   modele: string,
   photos: PhotoCapture[],
   reponsesUtilisateur: Record<string, string>,
-): Promise<ResultatAnalyse> {
+): Promise<ResultatMoteur> {
   if (photos.length === 0) {
-    throw new Error('Aucune photo fournie.');
+    return {
+      moteur: 'mistral',
+      succes: false,
+      erreur: 'Aucune photo fournie.',
+      hypotheses: [],
+    };
   }
-
-  const contenuImages = [];
-  for (const photo of photos) {
-    const base64 = photo.base64 ?? (await imageVersBase64(photo.uri));
-    contenuImages.push({
-      type: 'image_url' as const,
-      image_url: { url: `data:image/jpeg;base64,${base64}` },
-    });
-  }
-
-  let texteUtilisateur =
-    'Photos du champignon à identifier (plusieurs angles du même spécimen).';
-  const reponses = Object.entries(reponsesUtilisateur);
-  if (reponses.length > 0) {
-    texteUtilisateur += '\n\nRéponses de l’observateur aux questions complémentaires :\n';
-    for (const [question, reponse] of reponses) {
-      texteUtilisateur += `- ${question} → ${reponse}\n`;
-    }
-    texteUtilisateur += '\nTiens compte de ces réponses pour affiner ton identification.';
-  }
-
-  const reponse = await fetch(URL_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${cleApi}`,
-    },
-    body: JSON.stringify({
-      model: normaliserModele(modele),
-      messages: [
-        { role: 'system', content: PROMPT_SYSTEME_MYCOLOGUE },
-        {
-          role: 'user',
-          content: [
-            { type: 'text' as const, text: texteUtilisateur },
-            ...contenuImages,
-          ],
-        },
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-    }),
-  });
-
-  if (!reponse.ok) {
-    const corps = await reponse.text().catch(() => '');
-    if (reponse.status === 401) {
-      throw new Error('Clé API Mistral invalide (erreur 401). Vérifie-la dans les réglages.');
-    }
-    throw new Error(`Erreur API Mistral (${reponse.status}) : ${corps.slice(0, 200)}`);
-  }
-
-  const donnees = (await reponse.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const texte = donnees.choices?.[0]?.message?.content;
-  if (!texte) {
-    throw new Error('Réponse vide de l’API Mistral.');
-  }
-
   try {
-    return { resultat: parserReponseMycologue(texte) };
-  } catch {
-    throw new Error('La réponse de l’IA n’a pas pu être interprétée (JSON invalide).');
+    const contenuImages = [];
+    for (const photo of photos) {
+      const base64 = photo.base64 ?? (await imageVersBase64(photo.uri));
+      contenuImages.push({
+        type: 'image_url' as const,
+        image_url: { url: `data:image/jpeg;base64,${base64}` },
+      });
+    }
+
+    let texteUtilisateur =
+      'Photos du champignon à identifier (plusieurs angles du même spécimen).';
+    const reponses = Object.entries(reponsesUtilisateur);
+    if (reponses.length > 0) {
+      texteUtilisateur += '\n\nRéponses de l’observateur aux questions complémentaires :\n';
+      for (const [question, reponse] of reponses) {
+        texteUtilisateur += `- ${question} → ${reponse}\n`;
+      }
+      texteUtilisateur += '\nTiens compte de ces réponses pour affiner ton identification.';
+    }
+
+    const reponse = await fetch(URL_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cleApi}`,
+      },
+      body: JSON.stringify({
+        model: normaliserModele(modele),
+        messages: [
+          { role: 'system', content: PROMPT_SYSTEME_MYCOLOGUE },
+          {
+            role: 'user',
+            content: [
+              { type: 'text' as const, text: texteUtilisateur },
+              ...contenuImages,
+            ],
+          },
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => '');
+      if (reponse.status === 401) {
+        throw new Error('Clé API Mistral invalide (erreur 401). Vérifie-la dans les réglages.');
+      }
+      throw new Error(`Erreur API Mistral (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+
+    const donnees = (await reponse.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const texte = donnees.choices?.[0]?.message?.content;
+    if (!texte) {
+      throw new Error('Réponse vide de l’API Mistral.');
+    }
+
+    let fiche: ReponseMycologue;
+    try {
+      fiche = parserReponseMycologue(texte);
+    } catch {
+      throw new Error('La réponse de l’IA n’a pas pu être interprétée (JSON invalide).');
+    }
+
+    const label = labelComestibilite(fiche.comestibilite);
+    const hypothese: HypotheseMoteur = {
+      nomScientifique: fiche.nom_scientifique || 'Incertain',
+      nomCommun: fiche.nom_commun,
+      score: fiche.confiance === 'elevee' ? 90 : fiche.confiance === 'moyenne' ? 65 : 35,
+      comestibilite: label.texte,
+      pictoComestibilite: label.picto,
+      niveauComestibilite: niveauDepuisComestibilite(fiche.comestibilite),
+      sosies: fiche.confusions,
+    };
+
+    return {
+      moteur: 'mistral',
+      succes: true,
+      hypotheses: fiche.nom_scientifique ? [hypothese] : [],
+      ficheMistral: fiche,
+      note:
+        fiche.questions_supplementaires.length > 0
+          ? 'Confiance faible/moyenne : des questions complémentaires peuvent affiner l’identification.'
+          : undefined,
+    };
+  } catch (erreur) {
+    return {
+      moteur: 'mistral',
+      succes: false,
+      erreur: erreur instanceof Error ? erreur.message : String(erreur),
+      hypotheses: [],
+    };
   }
 }

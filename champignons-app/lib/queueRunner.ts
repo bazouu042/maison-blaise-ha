@@ -1,4 +1,5 @@
-import { analyserChampignon } from './mistral';
+import { calculerConsensus } from './consensus';
+import { executerMoteurs } from './moteurs';
 import { verifierReseau, onChangementReseau } from './network';
 import {
   chargerCleApi,
@@ -13,11 +14,9 @@ async function traiterFile() {
   if (enCours) return;
   enCours = true;
   try {
-    const cleApi = await chargerCleApi();
-    if (!cleApi || !cleApi.cle) {
-      enCours = false;
-      return;
-    }
+    const config = await chargerCleApi();
+    const cleMistralRequise = false; // iNaturalist fonctionne sans aucune clé
+    void cleMistralRequise;
     const historique = await chargerHistorique();
     const enAttente = historique.filter(
       (item) => item.enAttenteHorsLigne && item.statut === 'en_attente',
@@ -28,18 +27,30 @@ async function traiterFile() {
       item.statut = 'analyse';
       item.enAttenteHorsLigne = false;
       await mettreAJourIdentification(item);
-      try {
-        const { resultat } = await analyserChampignon(
-          cleApi.cle,
-          cleApi.modele,
-          item.photos.map((uri) => ({ uri })),
-          item.reponsesUtilisateur,
-        );
-        item.resultat = resultat;
+      const resultatsMoteurs = await executerMoteurs(
+        item.moteurs,
+        item.photos.map((uri) => ({ uri })),
+        item.reponsesUtilisateur,
+        config,
+        item.latitude != null && item.longitude != null
+          ? { latitude: item.latitude, longitude: item.longitude }
+          : undefined,
+      );
+      item.resultatsMoteurs = resultatsMoteurs;
+      item.consensus = calculerConsensus(resultatsMoteurs);
+      const mistral = resultatsMoteurs.find((r) => r.moteur === 'mistral');
+      if (mistral?.ficheMistral) {
+        item.resultat = mistral.ficheMistral;
+      }
+      const auMoinsUnSucces = resultatsMoteurs.some((r) => r.succes);
+      if (auMoinsUnSucces) {
         item.statut = 'terminee';
-      } catch (erreur) {
+        item.erreur = undefined;
+      } else {
         item.statut = 'erreur';
-        item.erreur = erreur instanceof Error ? erreur.message : String(erreur);
+        item.erreur = resultatsMoteurs
+          .map((r) => `${r.moteur} : ${r.erreur ?? 'échec'}`)
+          .join('\n');
         item.enAttenteHorsLigne = true;
       }
       await mettreAJourIdentification(item);

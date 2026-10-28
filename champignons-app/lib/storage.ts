@@ -14,8 +14,23 @@ export async function chargerCleApi(): Promise<CleApiStockee | null> {
   }
 }
 
-export async function sauverCleApi(cle: string, modele: string): Promise<void> {
-  await AsyncStorage.setItem(CLE_API, JSON.stringify({ cle, modele } satisfies CleApiStockee));
+export async function sauverCleApi(
+  cle: string,
+  modele: string,
+  cleKindwise?: string,
+): Promise<void> {
+  await AsyncStorage.setItem(
+    CLE_API,
+    JSON.stringify({ cle, modele, cleKindwise } satisfies CleApiStockee),
+  );
+}
+
+export async function sauverCleKindwise(cleKindwise: string): Promise<void> {
+  const config = (await chargerCleApi()) ?? { cle: '', modele: 'mistral-medium-latest' };
+  await AsyncStorage.setItem(
+    CLE_API,
+    JSON.stringify({ ...config, cleKindwise } satisfies CleApiStockee),
+  );
 }
 
 export async function supprimerCleApi(): Promise<void> {

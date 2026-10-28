@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -14,8 +14,10 @@ import * as Location from 'expo-location';
 import { AppButton } from '../components/AppButton';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SafetyBanner } from '../components/SafetyBanner';
+import { SelecteurMoteurs } from '../components/SelecteurMoteurs';
+import { calculerConsensus } from '../lib/consensus';
 import { QUESTIONS_HORS_LIGNE } from '../lib/labels';
-import { analyserChampignon } from '../lib/mistral';
+import { executerMoteurs } from '../lib/moteurs';
 import { getEtatReseau, verifierReseau } from '../lib/network';
 import {
   ajouterIdentification,
@@ -23,23 +25,24 @@ import {
   mettreAJourIdentification,
 } from '../lib/storage';
 import { useAppTheme } from '../lib/theme';
-import type { Identification, ReponseMycologue } from '../lib/types';
+import type { Identification, NomMoteur } from '../lib/types';
 
 function nouvelId(): string {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const MOTEUR_PAR_DEFAUT: NomMoteur[] = ['mistral'];
+
 export default function IdentifyScreen() {
   const theme = useAppTheme();
   const [photos, setPhotos] = useState<string[]>([]);
+  const [moteurs, setMoteurs] = useState<NomMoteur[]>(MOTEUR_PAR_DEFAUT);
   const [reponses, setReponses] = useState<Record<string, string>>({});
   const [questions, setQuestions] = useState<string[]>([]);
   const [chargement, setChargement] = useState(false);
   const [etape, setEtape] = useState<'photos' | 'questions' | 'envoi'>('photos');
   const [avecGps, setAvecGps] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-
-  const photosPrises = useMemo(() => photos, [photos]);
 
   async function prendrePhoto() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -84,6 +87,10 @@ export default function IdentifyScreen() {
   }
 
   async function lancerAnalyse(questionsRepondues: Record<string, string>, photosFinales: string[]) {
+    if (moteurs.length === 0) {
+      Alert.alert('Aucun moteur', 'Sélectionne au moins un moteur d’identification.');
+      return;
+    }
     setChargement(true);
     setEtape('envoi');
     const id = nouvelId();
@@ -92,6 +99,7 @@ export default function IdentifyScreen() {
       date: new Date().toISOString(),
       photos: photosFinales,
       reponsesUtilisateur: questionsRepondues,
+      moteurs,
       statut: 'en_attente',
       enAttenteHorsLigne: false,
       ...(coords ? { latitude: coords.latitude, longitude: coords.longitude } : {}),
@@ -99,15 +107,17 @@ export default function IdentifyScreen() {
     await ajouterIdentification(identification);
 
     const cleApi = await chargerCleApi();
-    if (!cleApi?.cle) {
+    const mistralDemande = moteurs.includes('mistral');
+    const kindwiseDemande = moteurs.includes('kindwise');
+    if ((mistralDemande && !cleApi?.cle) || (kindwiseDemande && !cleApi?.cleKindwise)) {
+      const manquants: string[] = [];
+      if (mistralDemande && !cleApi?.cle) manquants.push('Mistral');
+      if (kindwiseDemande && !cleApi?.cleKindwise) manquants.push('Kindwise');
       Alert.alert(
         'Clé API manquante',
-        'Colle ta clé API Mistral dans les réglages. En attendant, retrouve cette identification dans l’historique.',
-        [{ text: 'OK' }, { text: 'Réglages', onPress: () => router.push('/settings') }],
+        `Le moteur ${manquants.join(' + ')} a besoin d’une clé API (Réglages). Les autres moteurs fonctionneront quand même.`,
+        [{ text: 'Continuer' }, { text: 'Réglages', onPress: () => router.push('/settings') }],
       );
-      setChargement(false);
-      router.push('/history');
-      return;
     }
 
     const enLigne = getEtatReseau() === 'en_ligne' ? true : await verifierReseau();
@@ -132,56 +142,67 @@ export default function IdentifyScreen() {
 
     identification.statut = 'analyse';
     await mettreAJourIdentification(identification);
-    try {
-      const { resultat } = await analyserChampignon(
-        cleApi.cle,
-        cleApi.modele,
-        photosFinales.map((uri) => ({ uri })),
-        questionsRepondues,
-      );
-      identification.resultat = resultat;
+
+    const resultatsMoteurs = await executerMoteurs(
+      moteurs,
+      photosFinales.map((uri) => ({ uri })),
+      questionsRepondues,
+      cleApi,
+      coords ?? undefined,
+    );
+    identification.resultatsMoteurs = resultatsMoteurs;
+    identification.consensus = calculerConsensus(resultatsMoteurs);
+    const mistral = resultatsMoteurs.find((r) => r.moteur === 'mistral');
+    if (mistral?.ficheMistral) {
+      identification.resultat = mistral.ficheMistral;
+    }
+
+    const auMoinsUnSucces = resultatsMoteurs.some((r) => r.succes);
+    if (auMoinsUnSucces) {
       identification.statut = 'terminee';
-      await mettreAJourIdentification(identification);
-      if (
-        (resultat.confiance === 'faible' || resultat.confiance === 'moyenne') &&
-        resultat.questions_supplementaires.length > 0 &&
-        Object.keys(questionsRepondues).length === 0
-      ) {
-        setQuestions(resultat.questions_supplementaires);
-        setEtape('questions');
-        setChargement(false);
-        Alert.alert(
-          '🔍 Photos insuffisantes',
-          'L’IA hésite. Réponds à quelques questions pour affiner l’identification, ou consulte le résultat provisoire dans l’historique.',
-          [{ text: 'Répondre aux questions' }, { text: 'Voir le résultat provisoire', onPress: () => router.push(`/result?id=${id}`) }],
-        );
-      } else {
-        setChargement(false);
-        router.push(`/result?id=${id}`);
-      }
-    } catch (erreur) {
+    } else {
       identification.statut = 'erreur';
-      identification.erreur = erreur instanceof Error ? erreur.message : String(erreur);
-      await mettreAJourIdentification(identification);
-      setChargement(false);
-      Alert.alert('Erreur d’analyse', identification.erreur);
-      router.push('/history');
+      identification.erreur = resultatsMoteurs
+        .map((r) => `${r.moteur} : ${r.erreur ?? 'échec'}`)
+        .join('\n');
+    }
+    await mettreAJourIdentification(identification);
+    setChargement(false);
+
+    const mistralFaible =
+      mistral?.succes &&
+      mistral.ficheMistral &&
+      (mistral.ficheMistral.confiance === 'faible' || mistral.ficheMistral.confiance === 'moyenne') &&
+      mistral.ficheMistral.questions_supplementaires.length > 0 &&
+      Object.keys(questionsRepondues).length === 0;
+
+    if (mistralFaible) {
+      setQuestions(mistral.ficheMistral!.questions_supplementaires);
+      setEtape('questions');
+      Alert.alert(
+        '🔍 Photos insuffisantes (Mistral)',
+        'L’IA Mistral hésite. Réponds à quelques questions pour affiner l’identification, ou consulte le résultat provisoire.',
+        [
+          { text: 'Répondre aux questions' },
+          { text: 'Voir le résultat', onPress: () => router.push(`/result?id=${id}`) },
+        ],
+      );
+    } else {
+      router.push(`/result?id=${id}`);
     }
   }
 
   function envoyerDepuisPhotos() {
-    if (photosPrises.length === 0) {
+    if (photos.length === 0) {
       Alert.alert('Aucune photo', 'Ajoute au moins une photo du champignon.');
       return;
     }
-    void lancerAnalyse({}, photosPrises);
+    void lancerAnalyse({}, photos);
   }
 
   function envoyerDepuisQuestions() {
-    void lancerAnalyse(reponses, photosPrises);
+    void lancerAnalyse(reponses, photos);
   }
-
-  const questionsAffichees = questions;
 
   return (
     <SafeAreaView style={[styles.fond, { backgroundColor: theme.background }]} edges={['top']}>
@@ -192,7 +213,7 @@ export default function IdentifyScreen() {
         <Text style={[styles.aide, { color: theme.textMuted }]}>
           {etape === 'photos'
             ? 'Prends plusieurs photos du même champignon : chapeau de dessus, dessous (lames), pied, et lieu de pousse. Jusqu’à 8 photos.'
-            : 'L’IA a besoin d’infos complémentaires. Réponds à ces questions, puis relance l’analyse avec tes réponses.'}
+            : 'L’IA Mistral a besoin d’infos complémentaires. Réponds à ces questions, puis relance l’analyse avec tes réponses.'}
         </Text>
 
         {etape === 'photos' && (
@@ -207,9 +228,9 @@ export default function IdentifyScreen() {
               />
             </View>
 
-            {photosPrises.length > 0 && (
+            {photos.length > 0 && (
               <View style={styles.grillePhotos}>
-                {photosPrises.map((uri, index) => (
+                {photos.map((uri, index) => (
                   <PhotoThumb
                     key={uri + index}
                     uri={uri}
@@ -218,6 +239,8 @@ export default function IdentifyScreen() {
                 ))}
               </View>
             )}
+
+            <SelecteurMoteurs selectionnes={moteurs} onChange={setMoteurs} />
 
             <AppButton
               titre={avecGps ? '📍 Lieu enregistré' : '📍 Ajouter le lieu (GPS)'}
@@ -232,7 +255,7 @@ export default function IdentifyScreen() {
             )}
 
             <AppButton
-              titre={chargement ? 'Analyse en cours…' : '🍄 Lancer l’analyse IA'}
+              titre={chargement ? 'Analyse en cours…' : '🍄 Lancer l’analyse'}
               onPress={envoyerDepuisPhotos}
               chargement={chargement}
               desactive={chargement}
@@ -243,14 +266,14 @@ export default function IdentifyScreen() {
 
         {etape === 'questions' && (
           <>
-            {photosPrises.length > 0 && (
+            {photos.length > 0 && (
               <View style={styles.grillePhotos}>
-                {photosPrises.map((uri, index) => (
+                {photos.map((uri, index) => (
                   <PhotoThumb key={uri + index} uri={uri} taille={64} />
                 ))}
               </View>
             )}
-            {questionsAffichees.map((question, index) => (
+            {questions.map((question, index) => (
               <View key={index} style={styles.blocQuestion}>
                 <Text style={[styles.question, { color: theme.text }]}>
                   {index + 1}. {question}
@@ -292,7 +315,7 @@ export default function IdentifyScreen() {
         {etape === 'envoi' && chargement && (
           <View style={styles.blocChargement}>
             <Text style={[styles.texteChargement, { color: theme.textMuted }]}>
-              🍄 Le mycologue IA examine tes photos… Cela peut prendre quelques secondes.
+              🍄 Les moteurs d’identification examinent tes photos… Cela peut prendre quelques secondes.
             </Text>
           </View>
         )}

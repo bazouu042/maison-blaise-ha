@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SafetyBanner } from '../components/SafetyBanner';
-import { labelComestibilite, labelConfiance } from '../lib/labels';
+import { labelComestibilite, labelConfiance, META_MOTEURS, texteConsensus } from '../lib/labels';
+import { nomsMoteurs } from '../lib/consensus';
 import { chargerHistorique, viderHistorique } from '../lib/storage';
 import { useAppTheme } from '../lib/theme';
 import type { Identification } from '../lib/types';
@@ -24,6 +25,27 @@ function badgeStatut(item: Identification, theme: ReturnType<typeof useAppTheme>
     case 'terminee':
       return { texte: '✅ Terminée', couleur: theme.success };
   }
+}
+
+function nomAffichage(item: Identification): { nom: string; sousTitre?: string } {
+  const actifs = (item.resultatsMoteurs ?? []).filter((r) => r.succes && r.hypotheses.length > 0);
+  const mistral = item.resultatsMoteurs?.find((r) => r.moteur === 'mistral');
+  if (item.consensus?.statut === 'convergent' && item.consensus.especeCommune) {
+    return { nom: `🤝 ${item.consensus.especeCommune}`, sousTitre: 'Convergence de plusieurs moteurs' };
+  }
+  if (actifs.length > 0) {
+    const meilleur = actifs.reduce((a, b) =>
+      b.hypotheses[0].score > a.hypotheses[0].score ? b : a,
+    );
+    return {
+      nom: meilleur.hypotheses[0].nomScientifique,
+      sousTitre: `${META_MOTEURS[meilleur.moteur].titre} (${meilleur.hypotheses[0].score} %)`,
+    };
+  }
+  if (mistral?.ficheMistral?.nom_scientifique) {
+    return { nom: mistral.ficheMistral.nom_commun, sousTitre: mistral.ficheMistral.nom_scientifique };
+  }
+  return { nom: 'Identification en cours' };
 }
 
 export default function HistoryScreen() {
@@ -91,7 +113,9 @@ export default function HistoryScreen() {
         ListFooterComponent={<SafetyBanner />}
         renderItem={({ item }) => {
           const statut = badgeStatut(item, theme);
-          const resultat = item.resultat;
+          const affichage = nomAffichage(item);
+          const mistral = item.resultatsMoteurs?.find((r) => r.moteur === 'mistral');
+          const fiche = mistral?.ficheMistral ?? item.resultat;
           return (
             <TouchableOpacity
               style={[styles.carte, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -113,48 +137,66 @@ export default function HistoryScreen() {
                 )}
                 <View style={styles.infosCarte}>
                   <Text style={[styles.nom, { color: theme.text }]} numberOfLines={1}>
-                    {resultat?.nom_commun ?? 'Identification en cours'}
+                    {affichage.nom}
                   </Text>
-                  {resultat?.nom_scientifique ? (
-                    <Text
-                      style={[styles.scientifique, { color: theme.textMuted }]}
-                      numberOfLines={1}
-                    >
-                      {resultat.nom_scientifique}
+                  {affichage.sousTitre ? (
+                    <Text style={[styles.scientifique, { color: theme.textMuted }]} numberOfLines={1}>
+                      {affichage.sousTitre}
                     </Text>
                   ) : null}
                   <Text style={[styles.date, { color: theme.textMuted }]}>
                     {new Date(item.date).toLocaleString('fr-FR')}
                     {item.latitude != null ? ' · 📍' : ''}
                     {item.photos.length > 1 ? ` · ${item.photos.length} photos` : ''}
+                    {item.moteurs.length > 0 ? ` · ${nomsMoteurs(item.moteurs)}` : ''}
                   </Text>
                   <View style={styles.ligneBadges}>
                     <View style={[styles.badge, { backgroundColor: statut.couleur + '25' }]}>
                       <Text style={[styles.texteBadge, { color: statut.couleur }]}>{statut.texte}</Text>
                     </View>
-                    {resultat && (
+                    {item.consensus && (
                       <View
                         style={[
                           styles.badge,
-                          { backgroundColor: theme[labelConfiance(resultat.confiance).couleur] + '25' },
+                          {
+                            backgroundColor: theme[texteConsensus(item.consensus.statut).couleur] + '25',
+                          },
                         ]}
                       >
                         <Text
                           style={{
                             fontSize: 11,
                             fontWeight: '700',
-                            color: theme[labelConfiance(resultat.confiance).couleur],
+                            color: theme[texteConsensus(item.consensus.statut).couleur],
                           }}
                         >
-                          {labelConfiance(resultat.confiance).texte}
+                          {texteConsensus(item.consensus.statut).titre}
                         </Text>
                       </View>
                     )}
-                    {resultat && (
+                    {fiche && (
+                      <View
+                        style={[
+                          styles.badge,
+                          { backgroundColor: theme[labelConfiance(fiche.confiance).couleur] + '25' },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: '700',
+                            color: theme[labelConfiance(fiche.confiance).couleur],
+                          }}
+                        >
+                          {labelConfiance(fiche.confiance).texte}
+                        </Text>
+                      </View>
+                    )}
+                    {fiche && (
                       <View style={[styles.badge, { backgroundColor: theme.chipBg }]}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: theme.text }}>
-                          {labelComestibilite(resultat.comestibilite).picto}{' '}
-                          {labelComestibilite(resultat.comestibilite).texte}
+                          {labelComestibilite(fiche.comestibilite).picto}{' '}
+                          {labelComestibilite(fiche.comestibilite).texte}
                         </Text>
                       </View>
                     )}
