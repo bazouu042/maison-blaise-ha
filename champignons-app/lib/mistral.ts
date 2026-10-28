@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { PhotoCapture, ReponseMycologue } from './types';
 
 const URL_API = 'https://api.mistral.ai/v1/chat/completions';
