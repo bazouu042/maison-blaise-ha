@@ -1,7 +1,7 @@
 # 🍄 Champi'Recon — Reconnaissance de champignons (Android, hors ligne)
 
 Application Android en **React Native / Expo (TypeScript, Expo Router)** qui identifie les
-champignons à partir de photos, via l'**API Mistral** (modèle de vision `pixtral-large-latest`).
+champignons à partir de photos, via l'**API Mistral** (modèle de vision `mistral-medium-latest`, Mistral Medium 3.5).
 
 ## ⚠️ Sécurité
 

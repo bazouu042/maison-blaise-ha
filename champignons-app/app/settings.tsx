@@ -7,12 +7,13 @@ import { SafetyBanner } from '../components/SafetyBanner';
 import { chargerCleApi, sauverCleApi, supprimerCleApi } from '../lib/storage';
 import { useAppTheme } from '../lib/theme';
 
-const MODELES = ['pixtral-large-latest', 'pixtral-12b-latest', 'ministral-8b-latest'];
+const MODELES = ['mistral-medium-latest', 'mistral-large-latest', 'mistral-small-latest'];
+const MODELE_PAR_DEFAUT = 'mistral-medium-latest';
 
 export default function SettingsScreen() {
   const theme = useAppTheme();
   const [cle, setCle] = useState('');
-  const [modele, setModele] = useState('pixtral-large-latest');
+  const [modele, setModele] = useState(MODELE_PAR_DEFAUT);
   const [enregistre, setEnregistre] = useState(false);
   const [masque, setMasque] = useState(true);
 
@@ -20,7 +21,7 @@ export default function SettingsScreen() {
     chargerCleApi().then((config) => {
       if (config) {
         setCle(config.cle);
-        setModele(config.modele || 'pixtral-large-latest');
+        setModele(config.modele || MODELE_PAR_DEFAUT);
         setEnregistre(true);
       }
     });

@@ -2,7 +2,14 @@ import * as FileSystem from 'expo-file-system/legacy';
 import type { PhotoCapture, ReponseMycologue } from './types';
 
 const URL_API = 'https://api.mistral.ai/v1/chat/completions';
-const MODELE_PAR_DEFAUT = 'pixtral-large-latest';
+const MODELE_PAR_DEFAUT = 'mistral-medium-latest';
+
+// Les modèles Pixtral ont été retirés de l'API Mistral (shutdown le 31 mai 2026).
+// Si un ancien réglage contient encore un pixtral, on retombe sur le modèle par défaut.
+function normaliserModele(modele: string): string {
+  if (!modele || modele.startsWith('pixtral')) return MODELE_PAR_DEFAUT;
+  return modele;
+}
 
 export const PROMPT_SYSTEME_MYCOLOGUE = `Tu es un mycologue expert francophone, spécialisé dans l'identification des champignons européens. On te fournit une ou plusieurs photos d'un même champignon (chapeau, dessous du chapeau, pied, environnement) et éventuellement les réponses de l'observateur à des questions complémentaires.
 
@@ -122,7 +129,7 @@ export async function analyserChampignon(
       Authorization: `Bearer ${cleApi}`,
     },
     body: JSON.stringify({
-      model: modele || MODELE_PAR_DEFAUT,
+      model: normaliserModele(modele),
       messages: [
         { role: 'system', content: PROMPT_SYSTEME_MYCOLOGUE },
         {
