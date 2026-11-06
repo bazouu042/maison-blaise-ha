@@ -1,0 +1,7 @@
+{
+  "client_name": "Vibe (Mistral)",
+  "redirect_uris": [
+    "https://callback.mistral.ai/v1/integrations_auth/oauth2_callback"
+  ],
+  "token_endpoint_auth_method": "none"
+}
