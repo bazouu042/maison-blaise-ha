@@ -1,4 +1,5 @@
 {
+  "client_id": "https://raw.githubusercontent.com/bazouu042/maison-blaise-ha/main/vibe-oauth-client.json",
   "client_name": "Vibe (Mistral)",
   "redirect_uris": [
     "https://callback.mistral.ai/v1/integrations_auth/oauth2_callback"
