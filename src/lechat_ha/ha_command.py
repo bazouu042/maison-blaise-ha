@@ -5,9 +5,10 @@ Trois modes d'entrée :
 - WebSocket (ws_commands) : commandes API WebSocket de Home Assistant,
   nécessaires pour tout ce qui n'est pas exposé en REST (dashboards
   Lovelace, par exemple).
-- SSH (ssh_command) : exécute une commande sur le PC JARVIS (Windows),
-  en LAN direct depuis le ZimaOS. Utilisé pour la maintenance du dossier
-  Jarvis (C:/Users/adminlocal/AppData/Local/TechEnClair/Jarvis).
+- SSH (ssh_command) : exécute une commande sur le PC JARVIS (Windows)
+  ou le PC GAMER (Windows), en LAN direct depuis le ZimaOS. Le mot de
+  passe est choisi selon la machine : JARVIS_SSH_PASSWORD ou
+  PC_GAMER_SSH_PASSWORD (variables d'environnement du conteneur).
 C'est l'assistant du chat qui traduit le langage naturel en appel API.
 """
 
@@ -24,6 +25,9 @@ HA_WS_PORT = int(os.environ.get("HA_WS_PORT", "8123"))
 JARVIS_SSH_HOST = os.environ.get("JARVIS_SSH_HOST", "192.168.1.190")
 JARVIS_SSH_USER = os.environ.get("JARVIS_SSH_USER", "adminlocal")
 JARVIS_SSH_PASSWORD = os.environ.get("JARVIS_SSH_PASSWORD", "")
+PC_GAMER_SSH_HOST = os.environ.get("PC_GAMER_SSH_HOST", "192.168.1.2")
+PC_GAMER_SSH_USER = os.environ.get("PC_GAMER_SSH_USER", "pikat")
+PC_GAMER_SSH_PASSWORD = os.environ.get("PC_GAMER_SSH_PASSWORD", "")
 
 
 class HaCommandInput(BaseModel):
@@ -46,7 +50,8 @@ class HaCommandInput(BaseModel):
     ssh_command: str | None = Field(
         default=None,
         description=(
-            "Commande à exécuter sur le PC JARVIS (Windows, via SSH en LAN). "
+            "Commande à exécuter sur le PC JARVIS ou le PC GAMER "
+            "(Windows, via SSH en LAN). "
             "Ex: 'dir C:/Users/adminlocal/AppData/Local/TechEnClair/Jarvis'"
         ),
     )
@@ -97,16 +102,20 @@ async def call_ha_ws(
 
 @workflows.activity()
 async def run_ssh(command: str, host: str, user: str) -> dict[str, Any]:
-    """Exécute une commande sur le PC JARVIS via SSH (LAN direct depuis le ZimaOS).
+    """Exécute une commande sur le PC JARVIS ou le PC GAMER via SSH (LAN direct).
 
     Utilise paramiko (importé ici, bac à sable du workflow). Le mot de passe
-    vient de la variable d'environnement JARVIS_SSH_PASSWORD du conteneur.
+    vient des variables d'environnement du conteneur : JARVIS_SSH_PASSWORD
+    pour le PC JARVIS, PC_GAMER_SSH_PASSWORD pour le PC gamer.
     """
     import asyncio
 
     import paramiko
 
-    password = os.environ.get("JARVIS_SSH_PASSWORD", "")
+    if host == PC_GAMER_SSH_HOST and PC_GAMER_SSH_PASSWORD:
+        password = PC_GAMER_SSH_PASSWORD
+    else:
+        password = JARVIS_SSH_PASSWORD
 
     def _exec() -> dict[str, Any]:
         client = paramiko.SSHClient()
@@ -146,7 +155,7 @@ async def run_ssh(command: str, host: str, user: str) -> dict[str, Any]:
         "Pilote la Maison Blaise : exécute un appel API Home Assistant "
         "à travers le tunnel Cloudflare sécurisé (REST), des commandes "
         "API WebSocket (dashboards Lovelace), ou une commande SSH "
-        "sur le PC JARVIS (maintenance Jarvis)."
+        "sur le PC JARVIS ou le PC gamer (maintenance)."
     ),
 )
 class HaCommandWorkflow:
@@ -154,12 +163,17 @@ class HaCommandWorkflow:
     async def run(self, input: HaCommandInput) -> dict[str, Any]:
         if input.ssh_command:
             host = input.ssh_host or JARVIS_SSH_HOST
-            user = input.ssh_user or JARVIS_SSH_USER
+            if input.ssh_user:
+                user = input.ssh_user
+            elif host == PC_GAMER_SSH_HOST:
+                user = PC_GAMER_SSH_USER
+            else:
+                user = JARVIS_SSH_USER
             return await run_ssh(input.ssh_command, host, user)
         if input.ws_commands:
             host = input.ws_host or HA_WS_HOST
             port = input.ws_port or HA_WS_PORT
             return await call_ha_ws(input.ws_commands, host, port)
         if not input.path:
-            return {"error": "Fournir path (REST), ws_commands (WebSocket) ou ssh_command (SSH JARVIS)."}
+            return {"error": "Fournir path (REST), ws_commands (WebSocket) ou ssh_command (SSH)."}
         return await call_ha(input.path, input.method, input.body)
