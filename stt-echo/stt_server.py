@@ -4,11 +4,11 @@
 Jarvis STT local - mini-serveur de transcription vocale (Vosk ou faster-whisper)
 ================================================================================
 
-Endpoints (tous sous le prefixe /stt, pour pouvoir aussi passer par un tunnel) :
+Endpoints (tous sous le préfixe /stt, pour pouvoir aussi passer par un tunnel) :
 
   WS   /stt              Streaming : frames BINAIRES = PCM s16le 16 kHz mono.
                          Messages texte JSON :
-                           -> {"type":"start"}            (optionnel, remet a zero)
+                           -> {"type":"start"}            (optionnel, remet à zéro)
                            -> {"type":"audio_b64","data":"..."}  (PCM en base64, alternative au binaire)
                            -> {"type":"end"}              fin de phrase -> transcription finale
                            -> {"type":"cancel"}           abandon
@@ -21,10 +21,10 @@ Endpoints (tous sous le prefixe /stt, pour pouvoir aussi passer par un tunnel) :
                          WAV, webm/ogg/opus (ffmpeg requis dans le PATH),
                          ou JSON {"audio_b64":"...","mime":"audio/pcm"}  ->  {"text":"..."}
   GET  /stt/health       {"ok":true,...}
-  GET  /stt/test         Page de test micro (a ouvrir sur l'Echo Show)
-  GET  /stt/patch.js     Sert local_stt_patch.js (utilise par la page de test)
+  GET  /stt/test         Page de test micro (à ouvrir sur l'Echo Show)
+  GET  /stt/patch.js     Sert local_stt_patch.js (utilisé par la page de test)
 
-Auth optionnelle : --token XXX (ou variable STT_TOKEN) -> ?token=XXX ou en-tete X-STT-Token.
+Auth optionnelle : --token XXX (ou variable STT_TOKEN) -> ?token=XXX ou en-tête X-STT-Token.
 """
 from __future__ import annotations
 
@@ -49,17 +49,22 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 HERE = Path(__file__).resolve().parent
-SR = 16000
-MAX_UTTERANCE_S = 30
+SR = 16000                      # fréquence attendue (Hz)
+MAX_UTTERANCE_S = 30            # au-delà, l'audio entrant est ignoré
 log = logging.getLogger("jarvis-stt")
 
+# Hallucinations classiques de Whisper sur du silence / bruit (en français)
 WHISPER_JUNK = (
-    "sous-titres realises par", "sous-titrage", "amara.org", "merci d'avoir regarde",
+    "sous-titres réalisés par", "sous-titrage", "amara.org", "merci d'avoir regardé",
     "abonnez-vous", "sous titres", "radio-canada",
 )
 
 
+# ----------------------------------------------------------------------------
+# Moteurs
+# ----------------------------------------------------------------------------
 class VoskEngine:
+    """Streaming : le décodage se fait PENDANT que l'utilisateur parle."""
     name = "vosk"
     streaming = True
 
@@ -71,13 +76,13 @@ class VoskEngine:
         SetLogLevel(-1)
         p = Path(model_dir)
         if not p.is_dir():
-            raise SystemExit(f"Modele Vosk introuvable : {p}\n"
-                             "Telecharge https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip "
-                             "et dezippe-le dans le dossier 'models'.")
+            raise SystemExit(f"Modèle Vosk introuvable : {p}\n"
+                             "Télécharge https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip "
+                             "et dézippe-le dans le dossier 'models'.")
         t = time.perf_counter()
         self._KR = KaldiRecognizer
         self.model = Model(str(p))
-        log.info("Modele Vosk charge (%s) en %.1f s", p.name, time.perf_counter() - t)
+        log.info("Modèle Vosk chargé (%s) en %.1f s", p.name, time.perf_counter() - t)
 
     def new_session(self):
         return VoskSession(self._KR(self.model, SR))
@@ -92,7 +97,7 @@ class VoskEngine:
 class VoskSession:
     def __init__(self, rec):
         self.rec = rec
-        self.done: list[str] = []
+        self.done: list[str] = []      # segments déjà finalisés (pauses internes)
 
     def feed(self, pcm: bytes) -> str:
         if self.rec.AcceptWaveform(pcm):
@@ -112,6 +117,7 @@ class VoskSession:
 
 
 class WhisperEngine:
+    """Non-streaming : on bufferise, on transcrit à la fin de la phrase."""
     name = "whisper"
     streaming = False
 
@@ -123,8 +129,8 @@ class WhisperEngine:
         t = time.perf_counter()
         self.model = WhisperModel(model, device=device, compute_type=compute_type, cpu_threads=threads)
         self.lock = threading.Lock()
-        self.transcribe(b"\x00\x00" * SR)
-        log.info("Modele faster-whisper '%s' (%s/%s) charge en %.1f s",
+        self.transcribe(b"\x00\x00" * SR)  # chauffe
+        log.info("Modèle faster-whisper '%s' (%s/%s) chargé en %.1f s",
                  model, device, compute_type, time.perf_counter() - t)
 
     def new_session(self):
@@ -132,7 +138,7 @@ class WhisperEngine:
 
     def transcribe(self, pcm: bytes) -> str:
         import numpy as np
-        if len(pcm) < int(SR * 2 * 0.3):
+        if len(pcm) < int(SR * 2 * 0.3):  # < 300 ms
             return ""
         audio = np.frombuffer(pcm[: len(pcm) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768.0
         with self.lock:
@@ -155,12 +161,15 @@ class BufferSession:
 
     def feed(self, pcm: bytes):
         self.buf.extend(pcm)
-        return None
+        return None  # pas de partiels
 
     def finish(self) -> str:
         return self.e.transcribe(bytes(self.buf))
 
 
+# ----------------------------------------------------------------------------
+# Décodage des formats entrants (HTTP)
+# ----------------------------------------------------------------------------
 def decode_to_pcm(body: bytes, ctype: str) -> bytes:
     ctype = (ctype or "").split(";")[0].strip().lower()
     if ctype in ("", "audio/pcm", "audio/l16", "application/octet-stream"):
@@ -169,6 +178,7 @@ def decode_to_pcm(body: bytes, ctype: str) -> bytes:
         with wave.open(io.BytesIO(body)) as w:
             if w.getframerate() == SR and w.getnchannels() == 1 and w.getsampwidth() == 2:
                 return w.readframes(w.getnframes())
+        # sinon : conversion par ffmpeg ci-dessous
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise ValueError(f"Format '{ctype}' : ffmpeg requis dans le PATH (ou envoie du PCM 16 kHz mono)")
@@ -182,11 +192,14 @@ def decode_to_pcm(body: bytes, ctype: str) -> bytes:
     return p.stdout
 
 
+# ----------------------------------------------------------------------------
+# Sécurité : origine + jeton
+# ----------------------------------------------------------------------------
 def origin_allowed(request: web.Request, origin: str) -> bool:
     allowed = request.app["origins"]
     if "*" in allowed or origin in allowed:
         return True
-    return origin == f"{request.scheme}://{request.host}"
+    return origin == f"{request.scheme}://{request.host}"   # page de test servie par ce serveur
 
 
 def auth_ok(request: web.Request) -> bool:
@@ -209,6 +222,9 @@ async def cors_mw(request: web.Request, handler):
     return resp
 
 
+# ----------------------------------------------------------------------------
+# Handlers
+# ----------------------------------------------------------------------------
 async def h_health(request: web.Request):
     eng = request.app["engine"]
     return web.json_response({"ok": True, "engine": eng.name, "sample_rate": SR, "partials": eng.streaming})
@@ -238,7 +254,7 @@ async def h_transcribe(request: web.Request):
 async def h_ws(request: web.Request):
     origin = request.headers.get("Origin")
     if origin and not origin_allowed(request, origin):
-        log.warning("WS refusee, origine %s", origin)
+        log.warning("WS refusée, origine %s", origin)
         raise web.HTTPForbidden(text="origin not allowed")
     if not auth_ok(request):
         raise web.HTTPUnauthorized(text="bad token")
@@ -261,7 +277,7 @@ async def h_ws(request: web.Request):
             st["last"] = part
             await ws.send_json({"type": "partial", "text": part})
 
-    log.info("WS connectee : %s (origine %s)", peer, origin)
+    log.info("WS connectée : %s (origine %s)", peer, origin)
     await ws.send_json({"type": "ready", "engine": eng.name, "sample_rate": SR, "partials": eng.streaming})
     try:
         async for msg in ws:
@@ -298,7 +314,7 @@ async def h_ws(request: web.Request):
                 log.warning("WS erreur %s : %s", peer, ws.exception())
                 break
     finally:
-        log.info("WS fermee : %s", peer)
+        log.info("WS fermée : %s", peer)
     return ws
 
 
@@ -309,7 +325,7 @@ async def h_test(request: web.Request):
 async def h_patch_js(request: web.Request):
     f = HERE / "local_stt_patch.js"
     if not f.is_file():
-        raise web.HTTPNotFound(text="local_stt_patch.js absent a cote de stt_server.py")
+        raise web.HTTPNotFound(text="local_stt_patch.js absent à côté de stt_server.py")
     return web.Response(text=f.read_text(encoding="utf-8"), content_type="application/javascript",
                         headers={"Cache-Control": "no-store"})
 
@@ -325,7 +341,7 @@ button{font-size:26px;padding:18px 36px;border-radius:40px;border:0;background:#
 pre{white-space:pre-wrap;background:#222;padding:10px;border-radius:8px;font-size:13px}
 </style></head><body>
 <h2>Test STT local</h2>
-<button id="go">Parler</button> &nbsp; etat : <b id="state">idle</b>
+<button id="go">Parler</button> &nbsp; état : <b id="state">idle</b>
 <div id="lvl"><div id="bar"></div></div>
 <div id="partial"></div><div id="final"></div><pre id="log"></pre>
 <script>
@@ -334,9 +350,9 @@ function log(m){L.textContent=new Date().toLocaleTimeString()+'  '+m+'\n'+L.text
 window.LOCAL_STT_CONFIG={
   URLS:[(location.protocol==='https:'?'wss://':'ws://')+location.host+'/stt'],
   TOKEN:new URLSearchParams(location.search).get('token')||'',
-  onState:function(s){document.getElementById('state').textContent=s;log('etat : '+s);},
+  onState:function(s){document.getElementById('state').textContent=s;log('état : '+s);},
   onPartial:function(t){document.getElementById('partial').textContent=t;},
-  onTranscript:function(t,info){document.getElementById('final').textContent='\u00AB '+t+' \u00BB';
+  onTranscript:function(t,info){document.getElementById('final').textContent='« '+t+' »';
     log('FINAL : '+t+'  '+JSON.stringify(info||{}));document.getElementById('state').textContent='idle';},
   onMessage:function(m,err){log((err?'ERREUR : ':'')+m);},
   onLevel:function(r){document.getElementById('bar').style.width=Math.min(100,r*400)+'%';},
@@ -348,12 +364,15 @@ window.LOCAL_STT_CONFIG={
 log('UA : '+navigator.userAgent);
 log('AudioWorklet : '+!!window.AudioWorkletNode+' | getUserMedia : '+!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)+' | webkitSpeechRecognition : '+!!window.webkitSpeechRecognition);
 document.getElementById('go').onclick=function(){
-  if(!window.LOCAL_STT){log('ERREUR : patch.js non charge');return;}
+  if(!window.LOCAL_STT){log('ERREUR : patch.js non chargé');return;}
   window.LOCAL_STT.start();
 };
 </script></body></html>"""
 
 
+# ----------------------------------------------------------------------------
+# Démarrage
+# ----------------------------------------------------------------------------
 def build_app(engine, origins, token) -> web.Application:
     app = web.Application(client_max_size=25 * 1024 * 1024, middlewares=[cors_mw])
     app["engine"], app["origins"], app["token"] = engine, origins, token
@@ -367,6 +386,7 @@ def build_app(engine, origins, token) -> web.Application:
 
 
 async def cert_reloader(ctx: ssl.SSLContext, cert: str, key: str):
+    """Recharge le certificat à chaud après un renouvellement (lego renew)."""
     def mt():
         return os.path.getmtime(cert), os.path.getmtime(key)
     last = mt()
@@ -377,7 +397,7 @@ async def cert_reloader(ctx: ssl.SSLContext, cert: str, key: str):
             if m != last:
                 ctx.load_cert_chain(cert, key)
                 last = m
-                log.info("Certificat TLS recharge")
+                log.info("Certificat TLS rechargé")
         except Exception as e:  # noqa: BLE001
             log.warning("Rechargement certificat impossible : %s", e)
 
@@ -398,17 +418,17 @@ async def serve(args):
         ctx.load_cert_chain(args.cert, args.key)
         await web.TCPSite(runner, args.host, args.port, ssl_context=ctx).start()
         asyncio.create_task(cert_reloader(ctx, args.cert, args.key))
-        log.info("Ecoute TLS  : wss://%s:%d/stt  (https://.../stt/test)", args.host, args.port)
+        log.info("Écoute TLS  : wss://%s:%d/stt  (https://.../stt/test)", args.host, args.port)
     else:
         await web.TCPSite(runner, args.host, args.port).start()
-        log.warning("Ecoute SANS TLS : ws://%s:%d/stt  -> une page HTTPS ne pourra PAS s'y connecter "
+        log.warning("Écoute SANS TLS : ws://%s:%d/stt  -> une page HTTPS ne pourra PAS s'y connecter "
                     "(contenu mixte). OK seulement pour les tests curl.", args.host, args.port)
 
     if args.plain_port:
         await web.TCPSite(runner, "127.0.0.1", args.plain_port).start()
-        log.info("Ecoute locale (pour tunnel) : http://127.0.0.1:%d/stt", args.plain_port)
+        log.info("Écoute locale (pour tunnel) : http://127.0.0.1:%d/stt", args.plain_port)
 
-    log.info("Moteur : %s | origines autorisees : %s | jeton : %s",
+    log.info("Moteur : %s | origines autorisées : %s | jeton : %s",
              engine.name, ", ".join(sorted(origins)) or "-", "oui" if args.token else "non")
     await asyncio.Event().wait()
 
@@ -420,7 +440,7 @@ def setup_logging():
     fh = RotatingFileHandler(HERE / "stt_server.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     fh.setFormatter(fmt)
     root.addHandler(fh)
-    if sys.stdout is not None:
+    if sys.stdout is not None:          # None sous pythonw.exe (service)
         sh = logging.StreamHandler(sys.stdout)
         sh.setFormatter(fmt)
         root.addHandler(sh)
@@ -433,13 +453,13 @@ def main():
     ap.add_argument("--port", type=int, default=int(env("STT_PORT", "2777")))
     ap.add_argument("--engine", choices=["vosk", "whisper"], default=env("STT_ENGINE", "vosk"))
     ap.add_argument("--model", default=env("STT_MODEL"),
-                    help="vosk : dossier du modele ; whisper : tiny/base/small/medium/large-v3-turbo")
-    ap.add_argument("--cert", default=env("STT_CERT"), help="certificat PEM (chaine complete)")
-    ap.add_argument("--key", default=env("STT_KEY"), help="cle privee PEM")
+                    help="vosk : dossier du modèle ; whisper : tiny/base/small/medium/large-v3-turbo")
+    ap.add_argument("--cert", default=env("STT_CERT"), help="certificat PEM (chaîne complète)")
+    ap.add_argument("--key", default=env("STT_KEY"), help="clé privée PEM")
     ap.add_argument("--plain-port", type=int, default=int(env("STT_PLAIN_PORT", "0")),
-                    help="port HTTP en clair sur 127.0.0.1 (pour un tunnel cloudflared), 0 = desactive")
+                    help="port HTTP en clair sur 127.0.0.1 (pour un tunnel cloudflared), 0 = désactivé")
     ap.add_argument("--origins", default=env("STT_ORIGINS", "https://jarvis.bazouu-lab.fr"),
-                    help="origines web autorisees, separees par des virgules ('*' = toutes)")
+                    help="origines web autorisées, séparées par des virgules ('*' = toutes)")
     ap.add_argument("--token", default=env("STT_TOKEN", ""))
     ap.add_argument("--device", default=env("STT_DEVICE", "cpu"), help="whisper : cpu (cuda = NVIDIA uniquement)")
     ap.add_argument("--compute-type", default=env("STT_COMPUTE", "int8"))
