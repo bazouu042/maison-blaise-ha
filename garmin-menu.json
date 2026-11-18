@@ -2,13 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/house-of-abbey/GarminHomeAssistant/main/config.schema.json",
   "title": "Maison Blaise",
   "glance": {
-    "name": "Maison Blaise",
+    "type": "info",
     "content": "Salon {{ states('sensor.salon_capteur_temperature_temperature') }} °C"
   },
   "items": [
     {
       "name": "Lumières",
-      "type": "menu",
+      "type": "group",
       "items": [
         {
           "name": "Salle gaming PC",
@@ -29,14 +29,14 @@
     },
     {
       "name": "Volets",
-      "type": "menu",
+      "type": "group",
       "items": [
         {
           "name": "Ouvrir tous",
           "type": "tap",
           "entity": "script.ouvrir_tous_les_volets",
           "tap_action": {
-            "action": "toggle"
+            "action": "script.ouvrir_tous_les_volets"
           }
         },
         {
@@ -44,7 +44,7 @@
           "type": "tap",
           "entity": "script.fermer_tous_les_volets",
           "tap_action": {
-            "action": "toggle"
+            "action": "script.fermer_tous_les_volets"
           }
         },
         {
@@ -52,14 +52,14 @@
           "type": "tap",
           "entity": "script.stop_tous_les_volets",
           "tap_action": {
-            "action": "toggle"
+            "action": "script.stop_tous_les_volets"
           }
         }
       ]
     },
     {
       "name": "Musique",
-      "type": "menu",
+      "type": "group",
       "items": [
         {
           "name": "Spotify John",
@@ -70,14 +70,14 @@
     },
     {
       "name": "Cassandra",
-      "type": "menu",
+      "type": "group",
       "items": [
         {
           "name": "Musique",
           "type": "tap",
           "entity": "script.cassandra_musique",
           "tap_action": {
-            "action": "toggle"
+            "action": "script.cassandra_musique"
           }
         },
         {
@@ -85,7 +85,7 @@
           "type": "tap",
           "entity": "script.cassandra_internet",
           "tap_action": {
-            "action": "toggle"
+            "action": "script.cassandra_internet"
           }
         }
       ]
