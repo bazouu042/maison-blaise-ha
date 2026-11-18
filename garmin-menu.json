@@ -3,7 +3,7 @@
   "title": "Maison Blaise",
   "glance": {
     "type": "info",
-    "content": "Salon {{ states('sensor.salon_capteur_temperature_temperature') }} °C"
+    "content": "In {{ states('sensor.maison_blaise_temperature_interieure_v53') }}°C / Ext {{ states('sensor.maison_blaise_temperature_exterieure_v53') }}°C"
   },
   "items": [
     {
@@ -21,9 +21,56 @@
           "entity": "light.salle_gaming_ampoule_garage02"
         },
         {
+          "name": "Luminosite gaming PC",
+          "type": "numeric",
+          "entity": "light.salle_gaming_ampoule_zone_pc",
+          "content": "{{ ((state_attr('light.salle_gaming_ampoule_zone_pc','brightness') | int(0) / 255) * 100) | round(0) }}%",
+          "tap_action": {
+            "action": "light.turn_on",
+            "picker": {
+              "step": 5,
+              "min": 0,
+              "max": 255,
+              "attribute": "brightness",
+              "data_attribute": "brightness"
+            }
+          }
+        },
+        {
           "name": "Ambilight TV",
           "type": "toggle",
           "entity": "light.ambilight_john"
+        },
+        {
+          "name": "Ampoule entree",
+          "type": "toggle",
+          "entity": "light.ampoule_entree"
+        }
+      ]
+    },
+    {
+      "name": "Exterieur",
+      "type": "group",
+      "items": [
+        {
+          "name": "Terrasse",
+          "type": "toggle",
+          "entity": "light.terrasse"
+        },
+        {
+          "name": "Spot palmier",
+          "type": "toggle",
+          "entity": "light.spot_palmier"
+        },
+        {
+          "name": "Pool house",
+          "type": "toggle",
+          "entity": "light.pool_house"
+        },
+        {
+          "name": "Spa",
+          "type": "toggle",
+          "entity": "light.spa"
         }
       ]
     },
@@ -65,6 +112,27 @@
           "name": "Spotify John",
           "type": "toggle",
           "entity": "media_player.spotify_john"
+        },
+        {
+          "name": "Volume Spotify",
+          "type": "numeric",
+          "entity": "media_player.spotify_john",
+          "content": "{{ (state_attr('media_player.spotify_john','volume_level') | float(0) * 100) | round(0) }}%",
+          "tap_action": {
+            "action": "media_player.volume_set",
+            "picker": {
+              "step": 0.05,
+              "min": 0,
+              "max": 1,
+              "attribute": "volume_level",
+              "data_attribute": "volume_level"
+            }
+          }
+        },
+        {
+          "name": "TV Samsung salon",
+          "type": "toggle",
+          "entity": "media_player.salon_samsung_7_series_65"
         }
       ]
     },
@@ -87,13 +155,76 @@
           "tap_action": {
             "action": "script.cassandra_internet"
           }
+        },
+        {
+          "name": "Lire agenda",
+          "type": "tap",
+          "entity": "script.cassandra_lire_agenda",
+          "tap_action": {
+            "action": "script.cassandra_lire_agenda"
+          }
         }
       ]
     },
     {
-      "name": "Temp. salon",
-      "type": "info",
-      "content": "{{ states('sensor.salon_capteur_temperature_temperature') }} °C"
+      "name": "Informatique",
+      "type": "group",
+      "items": [
+        {
+          "name": "PC gamer (prise garage)",
+          "type": "toggle",
+          "entity": "switch.prise_pc_garage"
+        },
+        {
+          "name": "Redemarrer ZimaOS",
+          "type": "tap",
+          "entity": "button.zimaos_redemarrer",
+          "tap_action": {
+            "action": "button.press"
+          }
+        },
+        {
+          "name": "Chaudiere 3D lit",
+          "type": "numeric",
+          "entity": "number.klipper_bed_target",
+          "content": "{{ states('number.klipper_bed_target') }} deg",
+          "tap_action": {
+            "action": "number.set_value",
+            "picker": {
+              "step": 5,
+              "min": 0,
+              "max": 110,
+              "data_attribute": "value"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maison",
+      "type": "group",
+      "items": [
+        {
+          "name": "Temperature interieure",
+          "type": "info",
+          "content": "{{ states('sensor.maison_blaise_temperature_interieure_v53') }} degC"
+        },
+        {
+          "name": "Temperature exterieure",
+          "type": "info",
+          "content": "{{ states('sensor.maison_blaise_temperature_exterieure_v53') }} degC"
+        },
+        {
+          "name": "Conso EDF",
+          "type": "info",
+          "content": "{{ states('sensor.maison_blaise_consommation_edf_v5') }}"
+        },
+        {
+          "name": "Ecowatt jour",
+          "type": "info",
+          "content": "{{ states('sensor.rte_ecowatt_j0') }}"
+        }
+      ]
     }
   ]
 }
