@@ -3,7 +3,7 @@
   "title": "Maison Blaise",
   "items": [
     {
-      "name": "Lumiere PC",
+      "name": "Salle gaming PC",
       "type": "toggle",
       "entity": "light.salle_gaming_ampoule_zone_pc"
     }
