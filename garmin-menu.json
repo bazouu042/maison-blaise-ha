@@ -1,11 +1,99 @@
 {
   "$schema": "https://raw.githubusercontent.com/house-of-abbey/GarminHomeAssistant/main/config.schema.json",
   "title": "Maison Blaise",
+  "glance": {
+    "type": "info",
+    "content": "Salon {{ states('sensor.salon_capteur_temperature_temperature') }} °C"
+  },
   "items": [
     {
-      "name": "Salle gaming PC",
-      "type": "toggle",
-      "entity": "light.salle_gaming_ampoule_zone_pc"
+      "name": "Lumieres",
+      "type": "group",
+      "items": [
+        {
+          "name": "Salle gaming PC",
+          "type": "toggle",
+          "entity": "light.salle_gaming_ampoule_zone_pc"
+        },
+        {
+          "name": "Salle gaming garage",
+          "type": "toggle",
+          "entity": "light.salle_gaming_ampoule_garage02"
+        },
+        {
+          "name": "Ambilight TV",
+          "type": "toggle",
+          "entity": "light.ambilight_john"
+        }
+      ]
+    },
+    {
+      "name": "Volets",
+      "type": "group",
+      "items": [
+        {
+          "name": "Ouvrir tous",
+          "type": "tap",
+          "entity": "script.ouvrir_tous_les_volets",
+          "tap_action": {
+            "action": "script.ouvrir_tous_les_volets"
+          }
+        },
+        {
+          "name": "Fermer tous",
+          "type": "tap",
+          "entity": "script.fermer_tous_les_volets",
+          "tap_action": {
+            "action": "script.fermer_tous_les_volets"
+          }
+        },
+        {
+          "name": "Stop",
+          "type": "tap",
+          "entity": "script.stop_tous_les_volets",
+          "tap_action": {
+            "action": "script.stop_tous_les_volets"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Musique",
+      "type": "group",
+      "items": [
+        {
+          "name": "Spotify John",
+          "type": "toggle",
+          "entity": "media_player.spotify_john"
+        }
+      ]
+    },
+    {
+      "name": "Cassandra",
+      "type": "group",
+      "items": [
+        {
+          "name": "Musique",
+          "type": "tap",
+          "entity": "script.cassandra_musique",
+          "tap_action": {
+            "action": "script.cassandra_musique"
+          }
+        },
+        {
+          "name": "Internet",
+          "type": "tap",
+          "entity": "script.cassandra_internet",
+          "tap_action": {
+            "action": "script.cassandra_internet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Temp. salon",
+      "type": "info",
+      "content": "{{ states('sensor.salon_capteur_temperature_temperature') }} °C"
     }
   ]
 }
